@@ -3,9 +3,11 @@ name = "weather-app"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "flask>=3.1.3",
     "numpy>=2.4.6",
     "openmeteo-requests>=1.7.5",
     "pandas>=3.0.3",
+    "pandas-stubs~=3.0.3",
     "requests-cache>=1.3.2",
     "retry-requests>=2.0.0",
 ]
