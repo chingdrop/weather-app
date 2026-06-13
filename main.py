@@ -6,7 +6,10 @@ from zoneinfo import ZoneInfo
 
 import requests
 from apscheduler.schedulers.background import BackgroundScheduler
+from dotenv import load_dotenv
 from flask import Flask, jsonify
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,8 +21,9 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "weather-app")
-LAT, LON = 27.0442, -82.2359
-TIMEZONE = "America/New_York"
+LAT = float(os.environ.get("LAT", "27.0442"))
+LON = float(os.environ.get("LON", "-82.2359"))
+TIMEZONE = os.environ.get("TIMEZONE", "America/New_York")
 EASTERN = ZoneInfo(TIMEZONE)
 
 RAIN_CODES = {51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99}
