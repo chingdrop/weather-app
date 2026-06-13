@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py ./
+COPY adapter.py weather.py notifier.py main.py ./
 
 ENV HOST=0.0.0.0 \
     PORT=5000 \
