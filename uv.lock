@@ -541,6 +541,7 @@ dependencies = [
     { name = "openmeteo-requests" },
     { name = "pandas" },
     { name = "pandas-stubs" },
+    { name = "requests" },
     { name = "requests-cache" },
     { name = "retry-requests" },
 ]
@@ -552,6 +553,7 @@ requires-dist = [
     { name = "openmeteo-requests", specifier = ">=1.7.5" },
     { name = "pandas", specifier = ">=3.0.3" },
     { name = "pandas-stubs", specifier = "~=3.0.3" },
+    { name = "requests", specifier = ">=2.34.2" },
     { name = "requests-cache", specifier = ">=1.3.2" },
     { name = "retry-requests", specifier = ">=2.0.0" },
 ]

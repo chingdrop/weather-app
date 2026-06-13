@@ -8,6 +8,7 @@ dependencies = [
     "openmeteo-requests>=1.7.5",
     "pandas>=3.0.3",
     "pandas-stubs~=3.0.3",
+    "requests>=2.34.2",
     "requests-cache>=1.3.2",
     "retry-requests>=2.0.0",
 ]
