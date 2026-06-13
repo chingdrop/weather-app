@@ -1,7 +1,8 @@
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
+
+import pytest
 
 import main
 
@@ -42,7 +43,7 @@ CURRENT_DATA = {
 class TestSendQuickReport:
     def test_message_contains_conditions(self):
         with patch("main.fetch", return_value=CURRENT_DATA), \
-             patch("main.send_notification"):
+                patch("main.send_notification"):
             result = main.send_quick_report()
         assert "Partly cloudy" in result
         assert "88°F" in result
@@ -52,7 +53,7 @@ class TestSendQuickReport:
 
     def test_sends_notification_with_correct_title(self):
         with patch("main.fetch", return_value=CURRENT_DATA), \
-             patch("main.send_notification") as mock_notify:
+                patch("main.send_notification") as mock_notify:
             main.send_quick_report()
         _, kwargs = mock_notify.call_args
         assert kwargs["title"] == "Current Conditions"
@@ -79,7 +80,7 @@ DAILY_DATA = {
 class TestSendDailyReport:
     def test_message_contains_key_fields(self):
         with patch("main.fetch", return_value=DAILY_DATA), \
-             patch("main.send_notification") as mock_notify:
+                patch("main.send_notification") as mock_notify:
             main.send_daily_report()
         message = mock_notify.call_args[0][0]
         assert "88°F" in message
@@ -91,7 +92,7 @@ class TestSendDailyReport:
 
     def test_logs_and_swallows_api_error(self):
         with patch("main.fetch", side_effect=Exception("API down")), \
-             patch("main.log") as mock_log:
+                patch("main.log") as mock_log:
             main.send_daily_report()  # must not raise
         mock_log.exception.assert_called_once()
 
@@ -117,7 +118,7 @@ class TestCheckRainAlert:
             }
         }
         with patch("main.fetch", return_value=data), \
-             patch("main.send_notification") as mock_notify:
+                patch("main.send_notification") as mock_notify:
             main.check_rain_alert()
         mock_notify.assert_called_once()
         _, kwargs = mock_notify.call_args
@@ -134,7 +135,7 @@ class TestCheckRainAlert:
             }
         }
         with patch("main.fetch", return_value=data), \
-             patch("main.send_notification") as mock_notify:
+                patch("main.send_notification") as mock_notify:
             main.check_rain_alert()
         mock_notify.assert_not_called()
 
@@ -155,13 +156,13 @@ class TestCheckRainAlert:
             }
         }
         with patch("main.fetch", return_value=data), \
-             patch("main.send_notification"):
+                patch("main.send_notification"):
             main.check_rain_alert()
         assert main._last_rain_alert is not None
 
     def test_logs_and_swallows_api_error(self):
         with patch("main.fetch", side_effect=Exception("timeout")), \
-             patch("main.log") as mock_log:
+                patch("main.log") as mock_log:
             main.check_rain_alert()  # must not raise
         mock_log.exception.assert_called_once()
 

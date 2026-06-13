@@ -1,5 +1,3 @@
-import pytest
-
 from weather import compass
 
 

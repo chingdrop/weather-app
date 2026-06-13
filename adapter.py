@@ -52,17 +52,17 @@ class RestAdapter:
         self.session.mount("http://", adapter)
 
     def request(
-        self,
-        method: str,
-        endpoint: str,
-        *,
-        params: dict[str, Any] | None = None,
-        data: bytes | dict[str, Any] | None = None,
-        json: Any = None,
-        headers: dict[str, str] | None = None,
-        cookies: dict[str, str] | None = None,
-        timeout: float | None = None,
-        allow_redirects: bool = True,
+            self,
+            method: str,
+            endpoint: str,
+            *,
+            params: dict[str, Any] | None = None,
+            data: bytes | dict[str, Any] | None = None,
+            json: Any = None,
+            headers: dict[str, str] | None = None,
+            cookies: dict[str, str] | None = None,
+            timeout: float | None = None,
+            allow_redirects: bool = True,
     ) -> dict[str, Any] | str | bytes:
         """
         Make an HTTP request and return parsed JSON, text, or raw bytes.

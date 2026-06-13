@@ -8,10 +8,10 @@ _ntfy_api = RestAdapter(RestAdapterConfig(base_url="https://ntfy.sh", retries=2)
 
 
 def send_notification(
-    message: str,
-    title: str | None = None,
-    priority: str | None = None,
-    tags: str | None = None,
+        message: str,
+        title: str | None = None,
+        priority: str | None = None,
+        tags: str | None = None,
 ) -> None:
     headers = {}
     if title:
