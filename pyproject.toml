@@ -5,11 +5,13 @@ requires-python = ">=3.14"
 dependencies = [
     "apscheduler>=3.11.2",
     "flask>=3.1.3",
-    "numpy>=2.4.6",
-    "openmeteo-requests>=1.7.5",
-    "pandas>=3.0.3",
-    "pandas-stubs~=3.0.3",
     "requests>=2.34.2",
-    "requests-cache>=1.3.2",
-    "retry-requests>=2.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
