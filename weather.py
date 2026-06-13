@@ -40,3 +40,37 @@ def fetch(extra_params: dict) -> dict[str, Any]:
 def compass(degrees: float) -> str:
     dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     return dirs[round(degrees / 45) % 8]
+
+
+def fetch_rain_check_weather() -> dict[str, Any]:
+    return fetch({
+        "forecast_days": 1,
+        "current": [
+            "temperature_2m", "apparent_temperature", "precipitation", "rain",
+            "weather_code", "wind_speed_10m", "wind_gusts_10m",
+        ],
+        "hourly": [
+            "precipitation_probability", "precipitation", "rain",
+            "weather_code", "wind_gusts_10m", "apparent_temperature",
+        ],
+    })
+
+
+def fetch_report_weather() -> dict[str, Any]:
+    return fetch({
+        "forecast_days": 2,
+        "current": [
+            "temperature_2m", "apparent_temperature", "relative_humidity_2m",
+            "weather_code", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+            "precipitation",
+        ],
+        "daily": [
+            "temperature_2m_max", "temperature_2m_min", "apparent_temperature_max",
+            "precipitation_probability_max", "precipitation_sum", "rain_sum",
+            "wind_gusts_10m_max", "uv_index_max", "sunrise", "sunset", "weather_code",
+        ],
+        "hourly": [
+            "precipitation_probability", "rain", "temperature_2m",
+            "apparent_temperature", "wind_gusts_10m", "weather_code",
+        ],
+    })

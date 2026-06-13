@@ -4,8 +4,10 @@ A Flask service that sends local weather notifications via [ntfy](https://ntfy.s
 
 ## Features
 
-- **Daily report** — sent every morning at 7:00 AM with high/low temps, rain chance, UV index, and sunrise/sunset
-- **Rain alert** — checks every 30 minutes and sends a high-priority notification when rain is expected within the next few hours (2-hour cooldown between alerts)
+- **Daily report** — sent every morning at 7:00 AM with high/low temps, feels-like max, rain chance, wind gusts, UV index, sunrise/sunset, and a simple outdoor recommendation
+- **Rain alert** — checks every 30 minutes and sends a high-priority notification when rain is expected within the next few hours (2-hour cooldown)
+- **Wind gust alert** — fires when forecast gusts exceed the configured threshold (4-hour cooldown)
+- **Heat risk alert** — fires when feels-like temperature exceeds the configured threshold (6-hour cooldown)
 - **Quick report** — on-demand current conditions via `GET /report`
 
 Weather data is sourced from [Open-Meteo](https://open-meteo.com) (free, no API key required). Notifications are delivered through [ntfy](https://ntfy.sh) (free, self-hostable).
@@ -27,15 +29,19 @@ cp .env.example .env
 
 Edit `.env`:
 
-| Variable | Description |
-|---|---|
-| `NTFY_TOPIC` | Long random string — the ntfy topic you subscribe to |
-| `LAT` | Latitude of your location |
-| `LON` | Longitude of your location |
-| `TIMEZONE` | [IANA timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g. `America/New_York`) |
-| `HOST` | Bind address (`127.0.0.1` for local dev, `0.0.0.0` inside Docker) |
-| `PORT` | Port to listen on (default `5000`) |
-| `FLASK_DEBUG` | Set to `1` for debug mode, `0` in production |
+| Variable | Description | Default            |
+|---|---|--------------------|
+| `NTFY_TOPIC` | Long random string — the ntfy topic you subscribe to | *(required)*       |
+| `LAT` | Latitude of your location | `XX.XXXX`          |
+| `LON` | Longitude of your location | `-YY.YYYY`         |
+| `TIMEZONE` | [IANA timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) | `America/New_York` |
+| `HOST` | Bind address (`127.0.0.1` for local dev, `0.0.0.0` inside Docker) | `127.0.0.1`        |
+| `PORT` | Port to listen on | `5000`             |
+| `FLASK_DEBUG` | Set to `1` for debug mode | `0`                |
+| `RAIN_PROB_ALERT_PERCENT` | Rain probability threshold for alerts (%) | `50`               |
+| `RAIN_AMOUNT_ALERT_IN` | Rain amount threshold for alerts (inches) | `0.05`             |
+| `WIND_GUST_ALERT_MPH` | Wind gust threshold for alerts (mph) | `30`               |
+| `HEAT_INDEX_ALERT_F` | Feels-like temperature threshold for heat alerts (°F) | `100`              |
 
 ## Running locally
 
@@ -74,9 +80,9 @@ pytest
 
 ```
 adapter.py      # Generic HTTP client (retries, content-type parsing)
-weather.py      # Open-Meteo client, WMO codes, fetch/compass helpers
+weather.py      # Open-Meteo client, WMO codes, fetch helpers, compass
 notifier.py     # ntfy client and send_notification
-main.py         # Flask app, scheduled tasks, entry point
+main.py         # Flask app, scheduled tasks, alert thresholds, entry point
 tests/
   test_adapter.py
   test_weather.py
