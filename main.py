@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "weather-app")
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
 LAT = float(os.environ.get("LAT", "27.0442"))
 LON = float(os.environ.get("LON", "-82.2359"))
 TIMEZONE = os.environ.get("TIMEZONE", "America/New_York")
@@ -175,6 +175,11 @@ def send_quick_report() -> str:
     return message
 
 
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
 @app.route("/report")
 def report():
     try:
@@ -186,6 +191,9 @@ def report():
 
 
 if __name__ == "__main__":
+    if not NTFY_TOPIC:
+        raise SystemExit("NTFY_TOPIC environment variable is required — copy .env.example to .env and set it")
+
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5000"))
     debug = os.environ.get("FLASK_DEBUG", "1") == "1"
