@@ -1,10 +1,19 @@
 import atexit
+import logging
 import os
-import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -52,7 +61,12 @@ def _compass(degrees: float) -> str:
     return dirs[round(degrees / 45) % 8]
 
 
-def send_notification(message: str, title: str | None = None, priority: str | None = None, tags: str | None = None) -> None:
+def send_notification(
+        message: str,
+        title: str | None = None,
+        priority: str | None = None,
+        tags: str | None = None,
+) -> None:
     headers = {}
     if title:
         headers["Title"] = title
@@ -70,27 +84,31 @@ def send_notification(message: str, title: str | None = None, priority: str | No
 
 
 def send_daily_report() -> None:
-    data = _fetch({
-        "daily": [
-            "temperature_2m_max", "temperature_2m_min", "weather_code",
-            "precipitation_sum", "precipitation_probability_max",
-            "uv_index_max", "sunrise", "sunset",
-        ]
-    })
-    d = data["daily"]
-    condition = WMO.get(d["weather_code"][0], "Unknown")
-    sunrise = datetime.fromisoformat(d["sunrise"][0]).strftime("%I:%M %p")
-    sunset = datetime.fromisoformat(d["sunset"][0]).strftime("%I:%M %p")
+    try:
+        data = _fetch({
+            "daily": [
+                "temperature_2m_max", "temperature_2m_min", "weather_code",
+                "precipitation_sum", "precipitation_probability_max",
+                "uv_index_max", "sunrise", "sunset",
+            ]
+        })
+        d = data["daily"]
+        condition = WMO.get(d["weather_code"][0], "Unknown")
+        sunrise = datetime.fromisoformat(d["sunrise"][0]).strftime("%I:%M %p")
+        sunset = datetime.fromisoformat(d["sunset"][0]).strftime("%I:%M %p")
 
-    message = (
-        f"Good morning! Today in Sarasota:\n"
-        f"{condition}\n"
-        f"High: {d['temperature_2m_max'][0]:.0f}°F  Low: {d['temperature_2m_min'][0]:.0f}°F\n"
-        f"Rain: {d['precipitation_probability_max'][0]:.0f}% chance, {d['precipitation_sum'][0]:.2f}\" possible\n"
-        f"UV Index: {d['uv_index_max'][0]:.0f}\n"
-        f"Sunrise: {sunrise}  Sunset: {sunset}"
-    )
-    send_notification(message, title="Daily Weather Report", tags="sun_with_face")
+        message = (
+            f"Good morning! Today in Sarasota:\n"
+            f"{condition}\n"
+            f"High: {d['temperature_2m_max'][0]:.0f}°F  Low: {d['temperature_2m_min'][0]:.0f}°F\n"
+            f"Rain: {d['precipitation_probability_max'][0]:.0f}% chance, {d['precipitation_sum'][0]:.2f}\" possible\n"
+            f"UV Index: {d['uv_index_max'][0]:.0f}\n"
+            f"Sunrise: {sunrise}  Sunset: {sunset}"
+        )
+        send_notification(message, title="Daily Weather Report", tags="sun_with_face")
+        log.info("Daily report sent")
+    except Exception:
+        log.exception("Daily report failed")
 
 
 def check_rain_alert() -> None:
@@ -100,33 +118,36 @@ def check_rain_alert() -> None:
     if _last_rain_alert and (now - _last_rain_alert).total_seconds() < 7200:
         return
 
-    data = _fetch({
-        "hourly": ["precipitation_probability", "precipitation", "weather_code"],
-        "forecast_days": 1,
-    })
-    h = data["hourly"]
+    try:
+        data = _fetch({
+            "hourly": ["precipitation_probability", "precipitation", "weather_code"],
+            "forecast_days": 1,
+        })
+        h = data["hourly"]
 
-    # Filter to future hours only, look at next 3
-    upcoming = [
-        (h["time"][i], h["precipitation_probability"][i], h["precipitation"][i], int(h["weather_code"][i]))
-        for i in range(len(h["time"]))
-        if datetime.fromisoformat(h["time"][i]).replace(tzinfo=EASTERN) > now
-    ][:3]
+        upcoming = [
+            (h["time"][i], h["precipitation_probability"][i], h["precipitation"][i], int(h["weather_code"][i]))
+            for i in range(len(h["time"]))
+            if datetime.fromisoformat(h["time"][i]).replace(tzinfo=EASTERN) > now
+        ][:3]
 
-    rain_hours = [row for row in upcoming if row[1] >= 50 or row[3] in RAIN_CODES]
-    if not rain_hours:
-        return
+        rain_hours = [row for row in upcoming if row[1] >= 50 or row[3] in RAIN_CODES]
+        if not rain_hours:
+            return
 
-    first_time = datetime.fromisoformat(rain_hours[0][0]).strftime("%I:%M %p")
-    max_prob = max(row[1] for row in rain_hours)
-    condition = WMO.get(rain_hours[0][3], "Rain")
+        first_time = datetime.fromisoformat(rain_hours[0][0]).strftime("%I:%M %p")
+        max_prob = max(row[1] for row in rain_hours)
+        condition = WMO.get(rain_hours[0][3], "Rain")
 
-    message = (
-        f"{condition} expected around {first_time}\n"
-        f"Up to {max_prob:.0f}% chance in the next few hours"
-    )
-    send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
-    _last_rain_alert = now
+        message = (
+            f"{condition} expected around {first_time}\n"
+            f"Up to {max_prob:.0f}% chance in the next few hours"
+        )
+        send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
+        _last_rain_alert = now
+        log.info("Rain alert sent")
+    except Exception:
+        log.exception("Rain alert check failed")
 
 
 def send_quick_report() -> str:
@@ -152,13 +173,22 @@ def send_quick_report() -> str:
 
 @app.route("/report")
 def report():
-    return jsonify({"status": "sent", "message": send_quick_report()})
+    try:
+        message = send_quick_report()
+        return jsonify({"status": "sent", "message": message})
+    except Exception as e:
+        log.exception("Quick report failed")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "5000"))
+    debug = os.environ.get("FLASK_DEBUG", "1") == "1"
+
     scheduler = BackgroundScheduler(timezone=TIMEZONE)
     scheduler.add_job(send_daily_report, "cron", hour=7, minute=0)
     scheduler.add_job(check_rain_alert, "interval", minutes=30)
     scheduler.start()
     atexit.register(scheduler.shutdown)
-    app.run(debug=True, use_reloader=False)
+    app.run(host=host, port=port, debug=debug, use_reloader=False)
