@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5000"))
-    debug = os.environ.get("FLASK_DEBUG", "1") == "1"
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
 
     scheduler = BackgroundScheduler(timezone=TIMEZONE)
     scheduler.add_job(send_daily_report, "cron", hour=7, minute=0)
