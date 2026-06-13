@@ -1,7 +1,6 @@
 import atexit
 import os
 import requests
-import requests_cache
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -27,12 +26,11 @@ WMO = {
     95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Thunderstorm with heavy hail",
 }
 
-_weather_session = requests_cache.CachedSession(".cache", expire_after=900)
 _last_rain_alert: datetime | None = None
 
 
 def _fetch(extra_params: dict) -> dict:
-    resp = _weather_session.get(
+    resp = requests.get(
         "https://api.open-meteo.com/v1/forecast",
         params={
             "latitude": LAT,
@@ -43,6 +41,7 @@ def _fetch(extra_params: dict) -> dict:
             "precipitation_unit": "inch",
             **extra_params,
         },
+        timeout=10,
     )
     resp.raise_for_status()
     return resp.json()
@@ -61,11 +60,13 @@ def send_notification(message: str, title: str | None = None, priority: str | No
         headers["Priority"] = priority
     if tags:
         headers["Tags"] = tags
-    requests.post(
+    response = requests.post(
         f"https://ntfy.sh/{NTFY_TOPIC}",
         data=message.encode("utf-8"),
         headers=headers,
+        timeout=10,
     )
+    response.raise_for_status()
 
 
 def send_daily_report() -> None:
