@@ -133,11 +133,11 @@ class TestSendDailyReport:
         message = mock_notify.call_args[0][0]
         assert "88°F" in message
         assert "75°F" in message
-        assert "95°F" in message           # feels-like max
+        assert "95°F" in message  # feels-like max
         assert "40%" in message
-        assert "22 mph" in message         # wind gusts max
+        assert "22 mph" in message  # wind gusts max
         assert "06:23 AM" in message
-        assert "20:15" not in message      # sunset uses 12-hour format
+        assert "20:15" not in message  # sunset uses 12-hour format
         assert "08:15 PM" in message
 
     def test_logs_and_swallows_api_error(self):
