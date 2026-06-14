@@ -6,7 +6,7 @@ services:
     environment:
       TZ: America/New_York
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --tries=1 -O - http://localhost:80/v1/health || exit 1"]
+      test: [ "CMD-SHELL", "wget -q --tries=1 -O - http://localhost:80/v1/health || exit 1" ]
       interval: 30s
       timeout: 5s
       retries: 3
