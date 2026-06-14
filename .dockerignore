@@ -10,6 +10,8 @@ __pycache__/
 .cache
 .cache/
 *.sqlite
+*.db
+ntfy/cache/
 .env
 tests/
 *.log

@@ -17,8 +17,6 @@ services:
     container_name: weather-app
     restart: unless-stopped
     env_file: .env
-    environment:
-      NTFY_SELF_HOSTED: "1"
     ports:
       - "127.0.0.1:5000:5000"
     depends_on:

@@ -58,6 +58,10 @@ Thumbs.db
 .cache
 .cache/
 *.sqlite
+*.db
+
+# ntfy runtime data
+ntfy/cache/
 
 # Logs
 *.log
