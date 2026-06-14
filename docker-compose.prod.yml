@@ -1,0 +1,24 @@
+services:
+  ntfy:
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      TZ: America/New_York
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 -O - http://localhost:80/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  weather-app:
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      FLASK_DEBUG: "0"
+      HOST: "0.0.0.0"
+      PORT: "5000"
+    depends_on:
+      ntfy:
+        condition: service_healthy

@@ -3,21 +3,13 @@ services:
     image: binwiederhier/ntfy:latest
     container_name: ntfy
     command: serve
-    restart: unless-stopped
-    environment:
-      TZ: America/New_York
     volumes:
       - ./ntfy/cache:/var/cache/ntfy
       - ./ntfy/etc:/etc/ntfy
-    ports:
-      - "8080:80"
 
   weather-app:
     build: .
     container_name: weather-app
-    restart: unless-stopped
     env_file: .env
-    ports:
-      - "127.0.0.1:5000:5000"
     depends_on:
       - ntfy

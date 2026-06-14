@@ -38,20 +38,32 @@ nano .env   # set NTFY_TOPIC, LAT, LON, TIMEZONE
 
 ## Run
 
+### Development
+
 ```bash
 docker compose up -d --build
 ```
 
+`docker-compose.override.yml` is picked up automatically. Services bind to `127.0.0.1` only, Flask debug mode is on, no restart policy.
+
+### Production
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Adds `restart: unless-stopped`, healthchecks, ntfy exposed on all interfaces for LAN access, and safe env defaults (`FLASK_DEBUG=0`, `HOST=0.0.0.0`). All user-specific values (`NTFY_TOPIC`, `LAT`, `LON`, etc.) still come from `.env`.
+
 ## Common commands
 
-| Task | Command |
-|---|---|
-| View logs | `docker logs -f weather-app` |
-| Restart | `docker compose restart weather-app` |
-| Stop | `docker compose down` |
-| Rebuild after code change | `docker compose up -d --build` |
-| Check health | `curl http://127.0.0.1:5000/health` |
-| Trigger report | `curl http://127.0.0.1:5000/report` |
+| Task | Dev | Prod |
+|---|---|---|
+| View logs | `docker logs -f weather-app` | same |
+| Restart | `docker compose restart weather-app` | add `-f` flags |
+| Stop | `docker compose down` | add `-f` flags |
+| Rebuild | `docker compose up -d --build` | add `-f` flags |
+| Check health | `curl http://127.0.0.1:5000/health` | same |
+| Trigger report | `curl http://127.0.0.1:5000/report` | same |
 
 ## Notes
 
