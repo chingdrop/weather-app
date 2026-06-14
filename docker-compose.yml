@@ -11,11 +11,6 @@ services:
       - ./ntfy/etc:/etc/ntfy
     ports:
       - "8080:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --tries=1 -O - http://localhost:80/v1/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
   weather-app:
     build: .
@@ -27,5 +22,4 @@ services:
     ports:
       - "127.0.0.1:5000:5000"
     depends_on:
-      ntfy:
-        condition: service_healthy
+      - ntfy

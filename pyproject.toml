@@ -18,3 +18,6 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "integration: requires a running ntfy server (set RUN_INTEGRATION_TESTS=1)",
+]
