@@ -358,3 +358,53 @@ class TestReportRoute:
         data = resp.get_json()
         assert data["status"] == "error"
         assert "API error" in data["message"]
+
+
+# ---------------------------------------------------------------------------
+# _handle_command_event
+# ---------------------------------------------------------------------------
+
+class TestCommandListener:
+    def _msg_event(self, text: str) -> dict:
+        return {"event": "message", "message": text}
+
+    def test_report_command_triggers_quick_report(self):
+        with patch("main.send_quick_report") as mock_report:
+            main._handle_command_event(self._msg_event("report"))
+        mock_report.assert_called_once()
+
+    def test_weather_command_triggers_quick_report(self):
+        with patch("main.send_quick_report") as mock_report:
+            main._handle_command_event(self._msg_event("weather"))
+        mock_report.assert_called_once()
+
+    def test_now_command_triggers_quick_report(self):
+        with patch("main.send_quick_report") as mock_report:
+            main._handle_command_event(self._msg_event("now"))
+        mock_report.assert_called_once()
+
+    def test_command_is_case_insensitive(self):
+        with patch("main.send_quick_report") as mock_report:
+            main._handle_command_event(self._msg_event("REPORT"))
+        mock_report.assert_called_once()
+
+    def test_unknown_command_ignored(self):
+        with patch("main.send_quick_report") as mock_report:
+            main._handle_command_event(self._msg_event("hello"))
+        mock_report.assert_not_called()
+
+    def test_keepalive_event_ignored(self):
+        with patch("main.send_quick_report") as mock_report:
+            main._handle_command_event({"event": "keepalive"})
+        mock_report.assert_not_called()
+
+    def test_open_event_ignored(self):
+        with patch("main.send_quick_report") as mock_report:
+            main._handle_command_event({"event": "open"})
+        mock_report.assert_not_called()
+
+    def test_report_error_logged_not_raised(self):
+        with patch("main.send_quick_report", side_effect=Exception("boom")), \
+                patch("main.log") as mock_log:
+            main._handle_command_event(self._msg_event("report"))  # must not raise
+        mock_log.exception.assert_called_once()

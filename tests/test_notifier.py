@@ -8,6 +8,7 @@ import notifier
 class TestNotifierConfig:
     def test_self_hosted_flag_determines_base_url(self):
         expected = "http://ntfy" if notifier.NTFY_SELF_HOSTED else "https://ntfy.sh"
+        assert notifier.NTFY_BASE_URL == expected
         assert notifier._ntfy_api.config.base_url == expected
 
     def test_publish_endpoint_uses_topic(self):

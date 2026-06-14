@@ -1,8 +1,12 @@
 import atexit
+import json
 import logging
 import os
+import threading
+import time
 from datetime import datetime
 
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,7 +14,7 @@ load_dotenv()
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify
 
-from notifier import NTFY_TOPIC, send_notification
+from notifier import NTFY_BASE_URL, NTFY_TOPIC, send_notification
 from weather import EASTERN, RAIN_CODES, WMO, compass, fetch_rain_check_weather, fetch_report_weather
 
 logging.basicConfig(
@@ -22,6 +26,8 @@ log = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+NTFY_COMMAND_TOPIC = os.environ.get("NTFY_COMMAND_TOPIC", "")
+
 RAIN_PROB_ALERT_PERCENT = float(os.environ.get("RAIN_PROB_ALERT_PERCENT", "50"))
 RAIN_AMOUNT_ALERT_IN = float(os.environ.get("RAIN_AMOUNT_ALERT_IN", "0.05"))
 WIND_GUST_ALERT_MPH = float(os.environ.get("WIND_GUST_ALERT_MPH", "30"))
@@ -30,6 +36,8 @@ HEAT_INDEX_ALERT_F = float(os.environ.get("HEAT_INDEX_ALERT_F", "100"))
 _last_rain_alert: datetime | None = None
 _last_wind_alert: datetime | None = None
 _last_heat_alert: datetime | None = None
+
+_COMMANDS = frozenset({"report", "weather", "now"})
 
 
 def send_daily_report() -> None:
@@ -162,6 +170,42 @@ def send_quick_report() -> str:
     return message
 
 
+def _handle_command_event(event: dict) -> None:
+    if event.get("event") != "message":
+        return
+    cmd = event.get("message", "").strip().lower()
+    if cmd in _COMMANDS:
+        log.info("Command received: %r", cmd)
+        try:
+            send_quick_report()
+        except Exception:
+            log.exception("Command report failed")
+    else:
+        log.debug("Unknown command ignored: %r", cmd)
+
+
+def _command_listener() -> None:
+    url = f"{NTFY_BASE_URL}/{NTFY_COMMAND_TOPIC}/json"
+    while True:
+        try:
+            log.info("Command listener connecting to %s", url)
+            with requests.get(url, stream=True, timeout=(10, 75)) as resp:
+                resp.raise_for_status()
+                log.info("Command listener connected")
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        log.warning("Command listener received non-JSON line")
+                        continue
+                    _handle_command_event(event)
+        except Exception:
+            log.exception("Command listener error, reconnecting in 10s")
+            time.sleep(10)
+
+
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
@@ -184,6 +228,13 @@ if __name__ == "__main__":
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5000"))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+
+    if NTFY_COMMAND_TOPIC:
+        t = threading.Thread(target=_command_listener, daemon=True, name="ntfy-command-listener")
+        t.start()
+        log.info("Command listener started on topic: %s", NTFY_COMMAND_TOPIC)
+    else:
+        log.info("NTFY_COMMAND_TOPIC not set — command listening disabled")
 
     scheduler = BackgroundScheduler(timezone=EASTERN)
     scheduler.add_job(send_daily_report, "cron", hour=7, minute=0)
