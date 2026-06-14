@@ -55,10 +55,67 @@ docker compose up -d --build
 
 ## Notes
 
-**One instance only.** The app embeds APScheduler inside the Flask process. Do not run multiple replicas or workers — the daily report and rain alert jobs would fire multiple times.
+**One instance only.** The app embeds APScheduler inside the Flask process. Do not run multiple replicas or workers — the daily report and alert jobs would fire multiple times.
 
 **Network access.** The port is bound to `127.0.0.1:5000` by default, so it is only reachable from inside the VM. To expose it on your LAN or over Tailscale, either:
 - Change the port binding in `docker-compose.yml` to `"5000:5000"`, or
 - Put a reverse proxy (Caddy, nginx) in front of it on the same VM.
 
 **Portability.** The image has no baked-in secrets. Moving to a new Proxmox host is: copy the project directory, copy `.env`, run `docker compose up -d --build`.
+
+---
+
+## Self-hosted ntfy with iPhone
+
+The compose file runs a local ntfy container alongside the weather app. The weather app publishes internally over the Docker network; the iPhone subscribes over LAN or Tailscale.
+
+```
+weather-app ──► http://ntfy  (internal Docker network, port 80)
+iPhone      ──► http://<vm-lan-ip>:8080  (LAN or Tailscale)
+```
+
+### 1. Configure ntfy
+
+Edit `ntfy/etc/server.yml` and replace the placeholder IP:
+
+```yaml
+base-url: "http://192.168.1.100:8080"   # your Docker VM's LAN IP
+```
+
+This value must exactly match the **Default Server** URL you configure in the iPhone ntfy app.
+
+### 2. Start the stack
+
+```bash
+docker compose up -d --build
+```
+
+Both services start. The weather app waits for ntfy to pass its healthcheck before starting.
+
+### 3. Verify
+
+```bash
+# Check both containers are running
+docker ps
+
+# Check ntfy health
+curl http://127.0.0.1:8080/v1/health
+
+# Send a test notification from the VM
+curl -d "test from self-hosted ntfy" http://127.0.0.1:8080/YOUR_TOPIC
+
+# Trigger a weather report
+curl http://127.0.0.1:5000/report
+```
+
+### 4. iPhone ntfy app setup
+
+1. Open the ntfy app → **Settings** → **Default Server**.
+2. Set it to the same URL as `base-url` in `ntfy/etc/server.yml`, e.g. `http://192.168.1.100:8080`.
+3. Subscribe to the same topic used in `NTFY_TOPIC`.
+
+### iOS push behavior
+
+- **`upstream-base-url: "https://ntfy.sh"`** is required for instant iOS push. ntfy.sh relays the Apple Push Notification wake-up signal to your phone. The phone then fetches the actual message content from your self-hosted server using `base-url`.
+- **If notifications show "New message"** instead of the real text: the phone received the wake-up from ntfy.sh but could not reach your self-hosted server to fetch the content. Check that `base-url` is correct and that the phone can reach the VM IP on port 8080.
+- **Away from home:** LAN-only access stops working when the phone is off Wi-Fi. Use Tailscale, or later expose ntfy through HTTPS on a domain, for reliable remote access.

@@ -2,9 +2,10 @@ import os
 
 from adapter import RestAdapter, RestAdapterConfig
 
+NTFY_BASE_URL = os.environ.get("NTFY_BASE_URL", "https://ntfy.sh")
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")
 
-_ntfy_api = RestAdapter(RestAdapterConfig(base_url="https://ntfy.sh", retries=2))
+_ntfy_api = RestAdapter(RestAdapterConfig(base_url=NTFY_BASE_URL, retries=2))
 
 
 def send_notification(

@@ -1,0 +1,14 @@
+# base-url must exactly match the "Default Server URL" configured in the iPhone ntfy app
+# (Settings → Default Server). If the phone shows "New message" instead of the actual
+# content, the phone received the iOS push wake-up from ntfy.sh but could not reach
+# THIS server to fetch the message body. Check that this IP and port are reachable from
+# the phone (LAN, Tailscale, or public HTTPS).
+base-url: "http://REPLACE_WITH_DOCKER_VM_IP:8080"
+
+cache-file: "/var/cache/ntfy/cache.db"
+attachment-cache-dir: "/var/cache/ntfy/attachments"
+
+# upstream-base-url relays iOS push wake-up signals through ntfy.sh's Apple Push
+# Notification infrastructure. The phone wakes up via ntfy.sh, then fetches the
+# actual message content directly from THIS server using base-url above.
+upstream-base-url: "https://ntfy.sh"
