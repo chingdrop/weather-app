@@ -184,7 +184,7 @@ class TestSendDailyReport:
     def test_hourly_section_appears_in_message(self):
         from datetime import date
         today = date.today()
-        times = [f"{today}T{h:02d}:00" for h in range(6, 23)]
+        times = [f"{today}T{h:02d}:00" for h in range(7, 24)]
         data = {
             **REPORT_DATA,
             "hourly": {

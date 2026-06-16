@@ -74,7 +74,7 @@ def send_daily_report() -> None:
         hourly_lines = []
         for i, t in enumerate(h["time"]):
             dt = datetime.fromisoformat(t).replace(tzinfo=EASTERN)
-            if dt.date() != today or not (6 <= dt.hour <= 22):
+            if dt.date() != today or not (7 <= dt.hour <= 23):
                 continue
             cond = WMO.get(int(h["weather_code"][i]), "Unknown")
             temp = h["temperature_2m"][i]
