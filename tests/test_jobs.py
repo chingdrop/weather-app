@@ -6,6 +6,7 @@ import pytest
 
 import db
 import jobs
+import monitor as monitor_module
 from conftest import TEST_CFG
 
 EASTERN = ZoneInfo("America/New_York")
@@ -87,21 +88,21 @@ def _alert_data(times, precip_prob, rain, weather_codes, gusts, apparent_temps):
 
 class TestInitCooldowns:
     def test_all_none_when_no_alerts_in_db(self, monitor):
-        jobs.init_cooldowns(monitor)
+        monitor_module.init_cooldowns(monitor)
         assert monitor.rain.last_alert is None
         for alert in monitor.threshold_alerts:
             assert alert.last_alert is None
 
     def test_seeds_rain_from_db(self, monitor):
         db.record_alert(monitor.location_id, "rain", "a rain alert")
-        jobs.init_cooldowns(monitor)
+        monitor_module.init_cooldowns(monitor)
         assert monitor.rain.last_alert is not None
         assert monitor.threshold_alerts[0].last_alert is None  # wind still None
 
     def test_seeds_all_types(self, monitor):
         for name in ("rain", "wind", "heat", "frost"):
             db.record_alert(monitor.location_id, name, name)
-        jobs.init_cooldowns(monitor)
+        monitor_module.init_cooldowns(monitor)
         assert monitor.rain.last_alert is not None
         for alert in monitor.threshold_alerts:
             assert alert.last_alert is not None

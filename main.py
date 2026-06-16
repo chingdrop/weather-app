@@ -14,9 +14,10 @@ from flask import Flask, jsonify, request
 
 import db
 from config import LOCATIONS_FILE, load_locations
+from monitor import LocationMonitor, init_cooldowns
 from jobs import (
-    LocationMonitor, check_weather_alerts, init_cooldowns,
-    prune_database, send_daily_report, send_evening_report, send_quick_report,
+    check_weather_alerts, prune_database, send_daily_report,
+    send_evening_report, send_quick_report,
 )
 
 logging.basicConfig(

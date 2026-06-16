@@ -3,7 +3,7 @@ import pytest
 import db as db_module
 import main as main_module
 from config import LocationConfig
-from jobs import LocationMonitor
+from monitor import LocationMonitor
 
 TEST_CFG = LocationConfig(
     name="test",
