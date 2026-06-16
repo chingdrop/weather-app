@@ -36,6 +36,16 @@ nano .env   # set NTFY_TOPIC, LAT, LON, TIMEZONE
 
 `NTFY_TOPIC` is required. The app will refuse to start without it.
 
+Key optional variables (all have defaults):
+
+| Variable             | Description                                    | Default |
+|----------------------|------------------------------------------------|---------|
+| `DAILY_REPORT_HOUR`  | Hour to send the daily report (24-hour format) | `7`     |
+| `ALERT_INTERVAL_MIN` | How often to check for weather alerts (minutes)| `15`    |
+| `FLASK_DEBUG`        | Set to `1` for debug logging (dev only)        | `0`     |
+
+See `.env.example` for the full list of alert thresholds and server settings.
+
 ## Run
 
 ### Development
@@ -68,6 +78,10 @@ Adds `restart: unless-stopped`, healthchecks, ntfy exposed on all interfaces for
 | Trigger report | `curl http://127.0.0.1:5000/report`  | same           |
 
 ## Notes
+
+**Startup catch-up.** If the container restarts after the scheduled daily report time and no report has been recorded for today, one is sent automatically on startup.
+
+**Logging.** In production (`FLASK_DEBUG=0`) the log level is `WARNING` — you will see the startup banner, any alerts/reports sent, and errors. Set `FLASK_DEBUG=1` in dev to get `DEBUG`-level output including APScheduler internals.
 
 **One instance only.** The app embeds APScheduler inside the Flask process. Gunicorn is intentionally configured with
 `--workers 1` for this reason — multiple workers would cause every scheduled job to fire once per worker.
