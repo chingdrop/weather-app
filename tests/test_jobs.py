@@ -206,6 +206,84 @@ class TestSendDailyReport:
         message = mock_notify.call_args[0][0]
         assert "Hourly:" not in message
 
+    def test_uv_tip_appears_when_index_at_threshold(self):
+        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.send_daily_report()
+        message = mock_notify.call_args[0][0]
+        assert "sun protection" in message
+
+    def test_no_uv_tip_when_index_below_threshold(self):
+        data = {**REPORT_DATA, "daily": {**REPORT_DATA["daily"], "uv_index_max": [3.0]}}
+        with patch("jobs.fetch_report_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.send_daily_report()
+        message = mock_notify.call_args[0][0]
+        assert "sun protection" not in message
+
+
+# ---------------------------------------------------------------------------
+# send_evening_report
+# ---------------------------------------------------------------------------
+
+class TestSendEveningReport:
+    def _data(self):
+        from datetime import date, timedelta as td
+        tomorrow = date.today() + td(days=1)
+        times = [f"{tomorrow}T{h:02d}:00" for h in range(7, 24)]
+        return {
+            "daily": {
+                "weather_code": [2, 3],
+                "temperature_2m_max": [88.0, 91.0],
+                "temperature_2m_min": [75.0, 78.0],
+                "apparent_temperature_max": [95.0, 97.0],
+                "precipitation_probability_max": [40.0, 25.0],
+                "precipitation_sum": [0.5, 0.2],
+                "rain_sum": [0.5, 0.2],
+                "wind_gusts_10m_max": [22.0, 18.0],
+                "uv_index_max": [8.0, 7.0],
+                "sunrise": ["2026-06-16T06:23", "2026-06-17T06:24"],
+                "sunset": ["2026-06-16T20:15", "2026-06-17T20:14"],
+            },
+            "hourly": {
+                "time": times,
+                "precipitation_probability": [15.0] * len(times),
+                "rain": [0.0] * len(times),
+                "temperature_2m": [89.0] * len(times),
+                "apparent_temperature": [92.0] * len(times),
+                "wind_gusts_10m": [15.0] * len(times),
+                "weather_code": [3] * len(times),
+            },
+        }
+
+    def test_message_contains_tomorrow_values(self):
+        with patch("jobs.fetch_report_weather", return_value=self._data()), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.send_evening_report()
+        message = mock_notify.call_args[0][0]
+        assert "91°F" in message
+        assert "78°F" in message
+        assert "25%" in message
+
+    def test_sends_with_correct_title(self):
+        with patch("jobs.fetch_report_weather", return_value=self._data()), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.send_evening_report()
+        assert mock_notify.call_args.kwargs["title"] == "Evening Weather Briefing"
+
+    def test_hourly_shows_tomorrow(self):
+        with patch("jobs.fetch_report_weather", return_value=self._data()), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.send_evening_report()
+        message = mock_notify.call_args[0][0]
+        assert "Hourly:" in message
+        assert "89°F" in message
+
+    def test_swallows_api_error(self):
+        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("jobs.send_notification"):
+            jobs.send_evening_report()  # must not raise
+
 
 # ---------------------------------------------------------------------------
 # check_weather_alerts — rain
@@ -472,6 +550,74 @@ class TestHeatAlert:
 
 
 # ---------------------------------------------------------------------------
+# check_weather_alerts — frost
+# ---------------------------------------------------------------------------
+
+class TestFrostAlert:
+    def test_sends_alert_when_temperature_below_threshold(self):
+        times = _future_times(2)
+        data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [10.0, 12.0], [30.0, 28.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Frost Alert" in titles
+
+    def test_no_alert_above_threshold(self):
+        times = _future_times(2)
+        data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [10.0, 12.0], [50.0, 55.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Frost Alert" not in titles
+
+    def test_frost_cooldown_suppresses_alert(self):
+        jobs._frost_alert.last_alert = datetime.now(EASTERN)
+        jobs._frost_alert.last_peak = 30.0
+        times = _future_times(1)
+        data = _alert_data(times, [5.0], [0.0], [0], [10.0], [30.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Frost Alert" not in titles
+
+    def test_frost_resends_when_temperature_drops_further(self):
+        jobs._frost_alert.last_alert = datetime.now(EASTERN)
+        jobs._frost_alert.last_peak = 34.0
+        times = _future_times(1)
+        data = _alert_data(times, [5.0], [0.0], [0], [10.0], [28.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Frost Alert" in titles
+
+    def test_frost_cooldown_holds_when_temperature_same(self):
+        jobs._frost_alert.last_alert = datetime.now(EASTERN)
+        jobs._frost_alert.last_peak = 30.0
+        times = _future_times(1)
+        data = _alert_data(times, [5.0], [0.0], [0], [10.0], [30.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Frost Alert" not in titles
+
+    def test_frost_alert_includes_time_range(self):
+        times = _future_times(3)
+        data = _alert_data(times, [5.0, 5.0, 5.0], [0.0, 0.0, 0.0], [0, 0, 0], [10.0, 10.0, 10.0], [34.0, 30.0, 32.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        frost_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Frost Alert")
+        message = frost_call.args[0]
+        assert "from" in message
+        assert "to" in message
+
+
+# ---------------------------------------------------------------------------
 # check_weather_alerts — combined cooldown skip
 # ---------------------------------------------------------------------------
 
@@ -480,6 +626,7 @@ class TestAlertCooldownSkip:
         jobs._rain.last_alert = datetime.now(EASTERN)
         jobs._wind_alert.last_alert = datetime.now(EASTERN)
         jobs._heat_alert.last_alert = datetime.now(EASTERN)
+        jobs._frost_alert.last_alert = datetime.now(EASTERN)
         with patch("jobs.fetch_rain_check_weather") as mock_fetch:
             jobs.check_weather_alerts()
         mock_fetch.assert_not_called()

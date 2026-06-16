@@ -1,7 +1,7 @@
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import db
 from notifier import send_notification
@@ -13,6 +13,8 @@ RAIN_PROB_ALERT_PERCENT = float(os.environ.get("RAIN_PROB_ALERT_PERCENT", "50"))
 RAIN_AMOUNT_ALERT_IN = float(os.environ.get("RAIN_AMOUNT_ALERT_IN", "0.05"))
 WIND_GUST_ALERT_MPH = float(os.environ.get("WIND_GUST_ALERT_MPH", "30"))
 HEAT_INDEX_ALERT_F = float(os.environ.get("HEAT_INDEX_ALERT_F", "100"))
+FROST_TEMP_ALERT_F = float(os.environ.get("FROST_TEMP_ALERT_F", "36"))
+UV_INDEX_ALERT = int(os.environ.get("UV_INDEX_ALERT", "8"))
 DB_RETAIN_DAYS = int(os.environ.get("DB_RETAIN_DAYS", "30"))
 API_FAILURE_NOTIFY_AFTER = int(os.environ.get("API_FAILURE_NOTIFY_AFTER", "3"))
 
@@ -88,9 +90,23 @@ _heat_alert = ThresholdAlertConfig(
     hourly_unit="°F",
 )
 
+_frost_alert = ThresholdAlertConfig(
+    name="frost",
+    title="Frost Alert",
+    tags="snowflake",
+    threshold=FROST_TEMP_ALERT_F,
+    value_index=5,
+    current_key="apparent_temperature",
+    default_cooldown_secs=21600.0,
+    summary_template="Frost risk{time_range}. Feels-like temperature may drop to {peak:.0f}°F. Bring in sensitive plants.",
+    hourly_prefix="Feels like ",
+    hourly_unit="°F",
+    exceeds=False,
+)
+
 # Add new threshold-based alert types here. Rain is handled separately in check_weather_alerts
 # because it uses multiple trigger conditions (probability, amount, WMO code) and tracks code changes.
-_THRESHOLD_ALERTS: list[ThresholdAlertConfig] = [_wind_alert, _heat_alert]
+_THRESHOLD_ALERTS: list[ThresholdAlertConfig] = [_wind_alert, _heat_alert, _frost_alert]
 _ALL_ALERTS: list[AlertConfig] = [_rain, *_THRESHOLD_ALERTS]
 
 _api_failure_count: int = 0
