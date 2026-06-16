@@ -1,3 +1,5 @@
+from datetime import timedelta, timezone
+
 import pytest
 from sqlalchemy import inspect
 
@@ -104,6 +106,33 @@ class TestGetAlerts:
     def test_unknown_type_returns_empty(self):
         db.record_alert("rain", "alert")
         assert db.get_alerts(alert_type="unknown") == []
+
+
+class TestPruneOldRecords:
+    def _insert_old(self, days: int = 40):
+        cutoff = db.datetime.now(timezone.utc) - timedelta(days=days)
+        with db.Session(db._require_engine()) as session:
+            session.add(db.Report(type="daily", message="old report", created_at=cutoff))
+            session.add(db.Alert(type="rain", message="old alert", created_at=cutoff))
+            session.commit()
+
+    def test_deletes_old_reports_and_alerts(self):
+        self._insert_old()
+        reports_deleted, alerts_deleted = db.prune_old_records(30)
+        assert reports_deleted == 1
+        assert alerts_deleted == 1
+        assert db.get_reports() == []
+        assert db.get_alerts() == []
+
+    def test_keeps_recent_records(self):
+        db.record_report("daily", "recent")
+        db.record_alert("rain", "recent")
+        reports_deleted, alerts_deleted = db.prune_old_records(30)
+        assert reports_deleted == 0
+        assert alerts_deleted == 0
+
+    def test_returns_zero_when_nothing_to_prune(self):
+        assert db.prune_old_records(30) == (0, 0)
 
 
 class TestGetLastReportTime:

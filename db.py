@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import DateTime, Engine, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
@@ -79,6 +79,15 @@ def get_alerts(alert_type: str | None = None, limit: int = 50) -> list[dict]:
         if alert_type:
             q = q.filter(Alert.type == alert_type)
         return [_row_to_dict(a) for a in q.limit(limit).all()]
+
+
+def prune_old_records(retain_days: int) -> tuple[int, int]:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retain_days)
+    with Session(_require_engine()) as session:
+        reports_deleted = session.query(Report).filter(Report.created_at < cutoff).delete()
+        alerts_deleted = session.query(Alert).filter(Alert.created_at < cutoff).delete()
+        session.commit()
+    return reports_deleted, alerts_deleted
 
 
 def get_last_report_time(report_type: str) -> datetime | None:

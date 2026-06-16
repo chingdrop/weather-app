@@ -13,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify, request
 
 import db
-from jobs import check_weather_alerts, init_cooldowns, send_daily_report, send_quick_report
+from jobs import check_weather_alerts, init_cooldowns, prune_database, send_daily_report, send_quick_report
 from notifier import NTFY_TOPIC
 from weather import EASTERN
 
@@ -82,10 +82,11 @@ def _startup() -> None:
     scheduler = BackgroundScheduler(timezone=EASTERN)
     scheduler.add_job(send_daily_report, "cron", hour=DAILY_REPORT_HOUR, minute=0)
     scheduler.add_job(check_weather_alerts, "interval", minutes=ALERT_INTERVAL_MIN)
+    scheduler.add_job(prune_database, "cron", hour=3, minute=0)
     scheduler.start()
     atexit.register(scheduler.shutdown)
     log.warning(
-        "Scheduler started — daily report %02d:00, alerts every %d min",
+        "Scheduler started — daily report %02d:00, alerts every %d min, db prune at 03:00",
         DAILY_REPORT_HOUR,
         ALERT_INTERVAL_MIN,
     )

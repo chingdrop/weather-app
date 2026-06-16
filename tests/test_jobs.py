@@ -20,6 +20,8 @@ def reset_cooldowns():
     jobs._last_wind_peak = 0.0
     jobs._heat_cooldown_secs = 21600.0
     jobs._last_heat_peak = 0.0
+    jobs._api_failure_count = 0
+    jobs._failure_notified = False
     yield
     jobs._last_rain_alert = None
     jobs._last_wind_alert = None
@@ -30,6 +32,8 @@ def reset_cooldowns():
     jobs._last_wind_peak = 0.0
     jobs._heat_cooldown_secs = 21600.0
     jobs._last_heat_peak = 0.0
+    jobs._api_failure_count = 0
+    jobs._failure_notified = False
 
 
 # ---------------------------------------------------------------------------
@@ -493,4 +497,68 @@ class TestAlertCooldownSkip:
         with patch("jobs.fetch_rain_check_weather", side_effect=Exception("timeout")), \
                 patch("jobs.log") as mock_log:
             jobs.check_weather_alerts()  # must not raise
+        mock_log.exception.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# API failure notifications
+# ---------------------------------------------------------------------------
+
+class TestApiFailureNotification:
+    def test_notifies_after_threshold(self):
+        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("jobs.send_notification") as mock_notify:
+            for _ in range(jobs.API_FAILURE_NOTIFY_AFTER):
+                jobs.send_daily_report()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Weather App Error" in titles
+
+    def test_does_not_notify_before_threshold(self):
+        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("jobs.send_notification") as mock_notify:
+            for _ in range(jobs.API_FAILURE_NOTIFY_AFTER - 1):
+                jobs.send_daily_report()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Weather App Error" not in titles
+
+    def test_notifies_only_once_per_outage(self):
+        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("jobs.send_notification") as mock_notify:
+            for _ in range(jobs.API_FAILURE_NOTIFY_AFTER + 3):
+                jobs.send_daily_report()
+        error_calls = [c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Weather App Error"]
+        assert len(error_calls) == 1
+
+    def test_resets_and_renotifies_after_recovery(self):
+        with patch("jobs.fetch_report_weather", side_effect=Exception("down")), \
+                patch("jobs.send_notification"):
+            for _ in range(jobs.API_FAILURE_NOTIFY_AFTER):
+                jobs.send_daily_report()
+        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("jobs.send_notification"):
+            jobs.send_daily_report()
+        with patch("jobs.fetch_report_weather", side_effect=Exception("down")), \
+                patch("jobs.send_notification") as mock_notify:
+            for _ in range(jobs.API_FAILURE_NOTIFY_AFTER):
+                jobs.send_daily_report()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Weather App Error" in titles
+
+
+# ---------------------------------------------------------------------------
+# prune_database
+# ---------------------------------------------------------------------------
+
+class TestPruneDatabase:
+    def test_logs_pruned_counts(self):
+        with patch("jobs.db.prune_old_records", return_value=(2, 5)) as mock_prune, \
+                patch("jobs.log") as mock_log:
+            jobs.prune_database()
+        mock_prune.assert_called_once_with(jobs.DB_RETAIN_DAYS)
+        mock_log.info.assert_called_once()
+
+    def test_swallows_exception(self):
+        with patch("jobs.db.prune_old_records", side_effect=Exception("disk full")), \
+                patch("jobs.log") as mock_log:
+            jobs.prune_database()  # must not raise
         mock_log.exception.assert_called_once()

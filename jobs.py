@@ -12,6 +12,8 @@ RAIN_PROB_ALERT_PERCENT = float(os.environ.get("RAIN_PROB_ALERT_PERCENT", "50"))
 RAIN_AMOUNT_ALERT_IN = float(os.environ.get("RAIN_AMOUNT_ALERT_IN", "0.05"))
 WIND_GUST_ALERT_MPH = float(os.environ.get("WIND_GUST_ALERT_MPH", "30"))
 HEAT_INDEX_ALERT_F = float(os.environ.get("HEAT_INDEX_ALERT_F", "100"))
+DB_RETAIN_DAYS = int(os.environ.get("DB_RETAIN_DAYS", "30"))
+API_FAILURE_NOTIFY_AFTER = int(os.environ.get("API_FAILURE_NOTIFY_AFTER", "3"))
 
 _last_rain_alert: datetime | None = None
 _last_wind_alert: datetime | None = None
@@ -22,6 +24,31 @@ _wind_cooldown_secs: float = 14400.0
 _last_wind_peak: float = 0.0
 _heat_cooldown_secs: float = 21600.0
 _last_heat_peak: float = 0.0
+_api_failure_count: int = 0
+_failure_notified: bool = False
+
+
+def _on_api_success() -> None:
+    global _api_failure_count, _failure_notified
+    _api_failure_count = 0
+    _failure_notified = False
+
+
+def _on_api_failure(context: str) -> None:
+    global _api_failure_count, _failure_notified
+    _api_failure_count += 1
+    log.exception("%s failed (consecutive failures: %d)", context, _api_failure_count)
+    if _api_failure_count >= API_FAILURE_NOTIFY_AFTER and not _failure_notified:
+        try:
+            send_notification(
+                f"Weather API has failed {_api_failure_count} times in a row. Check logs.",
+                title="Weather App Error",
+                tags="warning",
+                priority="high",
+            )
+            _failure_notified = True
+        except Exception:
+            log.exception("Failed to send error notification")
 
 
 def init_cooldowns() -> None:
@@ -86,9 +113,10 @@ def send_daily_report() -> None:
 
         send_notification(message, title="Daily Weather Report", tags="sun_with_face")
         db.record_report("daily", message)
+        _on_api_success()
         log.info("Daily report sent")
     except Exception:
-        log.exception("Daily report failed")
+        _on_api_failure("Daily report")
 
 
 def check_weather_alerts() -> None:
@@ -201,8 +229,17 @@ def check_weather_alerts() -> None:
             _last_heat_alert = now
             log.info("Heat alert sent")
 
+        _on_api_success()
     except Exception:
-        log.exception("Weather alert check failed")
+        _on_api_failure("Weather alert check")
+
+
+def prune_database() -> None:
+    try:
+        reports, alerts = db.prune_old_records(DB_RETAIN_DAYS)
+        log.info("Pruned %d reports and %d alerts older than %d days", reports, alerts, DB_RETAIN_DAYS)
+    except Exception:
+        log.exception("Database pruning failed")
 
 
 # Intentionally lets exceptions propagate — the /report route handler catches them.
