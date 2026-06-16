@@ -6,6 +6,7 @@ services:
       TZ: America/New_York
 
   weather-app:
+    command: python main.py
     ports:
       - "127.0.0.1:5000:5000"
     environment:

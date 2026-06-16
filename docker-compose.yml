@@ -11,5 +11,9 @@ services:
     build: .
     container_name: weather-app
     env_file: .env
+    environment:
+      DB_PATH: /data/weather.db
+    volumes:
+      - ./data:/data
     depends_on:
       - ntfy
