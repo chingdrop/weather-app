@@ -125,65 +125,81 @@ def init_cooldowns() -> None:
         alert.last_alert = db.get_last_alert_time(alert.name)
 
 
-def send_daily_report() -> None:
+def _build_report_message(data: dict, day_offset: int) -> str:
+    d = data["daily"]
+    condition = WMO.get(d["weather_code"][day_offset], "Unknown")
+    sunrise = datetime.fromisoformat(d["sunrise"][day_offset]).strftime("%I:%M %p")
+    sunset = datetime.fromisoformat(d["sunset"][day_offset]).strftime("%I:%M %p")
+
+    high = d["temperature_2m_max"][day_offset]
+    low = d["temperature_2m_min"][day_offset]
+    feels_like_max = d["apparent_temperature_max"][day_offset]
+    rain_chance = d["precipitation_probability_max"][day_offset]
+    rain_sum = d["rain_sum"][day_offset]
+    wind_gusts_max = d["wind_gusts_10m_max"][day_offset]
+    uv = d["uv_index_max"][day_offset]
+
+    tips = []
+    if feels_like_max >= HEAT_INDEX_ALERT_F:
+        tips.append("Heat risk high this afternoon" if day_offset == 0 else "Heat risk high tomorrow afternoon")
+    if rain_chance >= 60:
+        tips.append("Storm/rain risk increases later today" if day_offset == 0 else "Storm/rain risk high tomorrow")
+    elif rain_chance < 20 and feels_like_max < HEAT_INDEX_ALERT_F:
+        tips.append("Best outdoor window: morning")
+    if wind_gusts_max >= WIND_GUST_ALERT_MPH:
+        tips.append(f"Wind gusts up to {wind_gusts_max:.0f} mph expected")
+    if uv >= UV_INDEX_ALERT:
+        tips.append(f"High UV ({uv:.0f}) — sun protection recommended")
+
+    greeting = "Good morning! Today" if day_offset == 0 else "Good evening! Tomorrow"
+    message = (
+        f"{greeting} in Sarasota:\n"
+        f"{condition}\n"
+        f"High: {high:.0f}°F  Low: {low:.0f}°F  Feels like: {feels_like_max:.0f}°F\n"
+        f"Rain: {rain_chance:.0f}% chance, {rain_sum:.2f}\" possible\n"
+        f"Wind gusts: up to {wind_gusts_max:.0f} mph\n"
+        f"UV Index: {uv:.0f}\n"
+        f"Sunrise: {sunrise}  Sunset: {sunset}"
+    )
+    if tips:
+        message += "\n" + "\n".join(tips)
+
+    h = data["hourly"]
+    report_date = datetime.now(EASTERN).date() + timedelta(days=day_offset)
+    hourly_lines = []
+    for i, t in enumerate(h["time"]):
+        dt = datetime.fromisoformat(t).replace(tzinfo=EASTERN)
+        if dt.date() != report_date or not (7 <= dt.hour <= 23):
+            continue
+        cond = WMO.get(int(h["weather_code"][i]), "Unknown")
+        temp = h["temperature_2m"][i]
+        rain = int(h["precipitation_probability"][i])
+        time_str = dt.strftime("%I %p").lstrip("0")
+        hourly_lines.append(f"{time_str:>6}  {cond}  {temp:.0f}°F  {rain}%")
+    if hourly_lines:
+        message += "\n\nHourly:\n" + "\n".join(hourly_lines)
+
+    return message
+
+
+def _send_report(day_offset: int, title: str, tags: str, report_type: str) -> None:
     try:
         data = fetch_report_weather()
-        d = data["daily"]
-        condition = WMO.get(d["weather_code"][0], "Unknown")
-        sunrise = datetime.fromisoformat(d["sunrise"][0]).strftime("%I:%M %p")
-        sunset = datetime.fromisoformat(d["sunset"][0]).strftime("%I:%M %p")
-
-        high = d["temperature_2m_max"][0]
-        low = d["temperature_2m_min"][0]
-        feels_like_max = d["apparent_temperature_max"][0]
-        rain_chance = d["precipitation_probability_max"][0]
-        rain_sum = d["rain_sum"][0]
-        wind_gusts_max = d["wind_gusts_10m_max"][0]
-        uv = d["uv_index_max"][0]
-
-        tips = []
-        if feels_like_max >= HEAT_INDEX_ALERT_F:
-            tips.append("Heat risk high this afternoon")
-        if rain_chance >= 60:
-            tips.append("Storm/rain risk increases later today")
-        elif rain_chance < 20 and feels_like_max < HEAT_INDEX_ALERT_F:
-            tips.append("Best outdoor window: morning")
-        if wind_gusts_max >= WIND_GUST_ALERT_MPH:
-            tips.append(f"Wind gusts up to {wind_gusts_max:.0f} mph expected")
-
-        message = (
-            f"Good morning! Today in Sarasota:\n"
-            f"{condition}\n"
-            f"High: {high:.0f}°F  Low: {low:.0f}°F  Feels like: {feels_like_max:.0f}°F\n"
-            f"Rain: {rain_chance:.0f}% chance, {rain_sum:.2f}\" possible\n"
-            f"Wind gusts: up to {wind_gusts_max:.0f} mph\n"
-            f"UV Index: {uv:.0f}\n"
-            f"Sunrise: {sunrise}  Sunset: {sunset}"
-        )
-        if tips:
-            message += "\n" + "\n".join(tips)
-
-        h = data["hourly"]
-        today = datetime.now(EASTERN).date()
-        hourly_lines = []
-        for i, t in enumerate(h["time"]):
-            dt = datetime.fromisoformat(t).replace(tzinfo=EASTERN)
-            if dt.date() != today or not (7 <= dt.hour <= 23):
-                continue
-            cond = WMO.get(int(h["weather_code"][i]), "Unknown")
-            temp = h["temperature_2m"][i]
-            rain = int(h["precipitation_probability"][i])
-            time_str = dt.strftime("%I %p").lstrip("0")
-            hourly_lines.append(f"{time_str:>6}  {cond}  {temp:.0f}°F  {rain}%")
-        if hourly_lines:
-            message += "\n\nHourly:\n" + "\n".join(hourly_lines)
-
-        send_notification(message, title="Daily Weather Report", tags="sun_with_face")
-        db.record_report("daily", message)
+        message = _build_report_message(data, day_offset)
+        send_notification(message, title=title, tags=tags)
+        db.record_report(report_type, message)
         _on_api_success()
-        log.info("Daily report sent")
+        log.info("%s sent", title)
     except Exception:
-        _on_api_failure("Daily report")
+        _on_api_failure(title)
+
+
+def send_daily_report() -> None:
+    _send_report(0, "Daily Weather Report", "sun_with_face", "daily")
+
+
+def send_evening_report() -> None:
+    _send_report(1, "Evening Weather Briefing", "night_with_stars", "evening")
 
 
 def check_weather_alerts() -> None:
