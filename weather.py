@@ -1,13 +1,6 @@
-import os
 from typing import Any, cast
-from zoneinfo import ZoneInfo
 
 from adapter import RestAdapter, RestAdapterConfig
-
-LAT = float(os.environ.get("LAT", "27.0442"))
-LON = float(os.environ.get("LON", "-82.2359"))
-TIMEZONE = os.environ.get("TIMEZONE", "America/New_York")
-EASTERN = ZoneInfo(TIMEZONE)
 
 RAIN_CODES = {51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99}
 
@@ -25,11 +18,11 @@ WMO = {
 _weather_api = RestAdapter(RestAdapterConfig(base_url="https://api.open-meteo.com/v1/forecast"))
 
 
-def fetch(extra_params: dict) -> dict[str, Any]:
+def fetch(lat: float, lon: float, tz_name: str, extra_params: dict) -> dict[str, Any]:
     return cast(dict[str, Any], _weather_api.get(params={
-        "latitude": LAT,
-        "longitude": LON,
-        "timezone": TIMEZONE,
+        "latitude": lat,
+        "longitude": lon,
+        "timezone": tz_name,
         "temperature_unit": "fahrenheit",
         "wind_speed_unit": "mph",
         "precipitation_unit": "inch",
@@ -42,8 +35,8 @@ def compass(degrees: float) -> str:
     return dirs[round(degrees / 45) % 8]
 
 
-def fetch_rain_check_weather() -> dict[str, Any]:
-    return fetch({
+def fetch_rain_check_weather(lat: float, lon: float, tz_name: str) -> dict[str, Any]:
+    return fetch(lat, lon, tz_name, {
         "forecast_days": 1,
         "current": [
             "temperature_2m", "apparent_temperature", "precipitation", "rain",
@@ -56,8 +49,8 @@ def fetch_rain_check_weather() -> dict[str, Any]:
     })
 
 
-def fetch_report_weather() -> dict[str, Any]:
-    return fetch({
+def fetch_report_weather(lat: float, lon: float, tz_name: str) -> dict[str, Any]:
+    return fetch(lat, lon, tz_name, {
         "forecast_days": 2,
         "current": [
             "temperature_2m", "apparent_temperature", "relative_humidity_2m",

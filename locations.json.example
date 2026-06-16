@@ -1,0 +1,17 @@
+[
+  {
+    "name": "home",
+    "lat": 27.3364,
+    "lon": -82.5307,
+    "timezone": "America/New_York",
+    "ntfy_topic": "replace-with-long-random-topic",
+    "thresholds": {
+      "rain_prob_alert_percent": 50,
+      "rain_amount_alert_in": 0.05,
+      "wind_gust_alert_mph": 30,
+      "heat_index_alert_f": 100,
+      "frost_temp_alert_f": 36,
+      "uv_index_alert": 8
+    }
+  }
+]

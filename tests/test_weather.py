@@ -3,6 +3,8 @@ from unittest.mock import patch
 import weather
 from weather import compass
 
+LAT, LON, TZ = 27.3364, -82.5307, "America/New_York"
+
 
 class TestCompass:
     def test_north(self):
@@ -26,24 +28,33 @@ class TestFetchHelpers:
     def test_fetch_rain_check_weather_params(self):
         with patch("weather.fetch") as mock_fetch:
             mock_fetch.return_value = {}
-            weather.fetch_rain_check_weather()
-        params = mock_fetch.call_args[0][0]
-        assert params["forecast_days"] == 1
-        assert "precipitation_probability" in params["hourly"]
-        assert "wind_gusts_10m" in params["hourly"]
-        assert "apparent_temperature" in params["hourly"]
-        assert "wind_gusts_10m" in params["current"]
-        assert "apparent_temperature" in params["current"]
+            weather.fetch_rain_check_weather(LAT, LON, TZ)
+        extra = mock_fetch.call_args[0][3]
+        assert extra["forecast_days"] == 1
+        assert "precipitation_probability" in extra["hourly"]
+        assert "wind_gusts_10m" in extra["hourly"]
+        assert "apparent_temperature" in extra["hourly"]
+        assert "wind_gusts_10m" in extra["current"]
+        assert "apparent_temperature" in extra["current"]
 
     def test_fetch_report_weather_params(self):
         with patch("weather.fetch") as mock_fetch:
             mock_fetch.return_value = {}
-            weather.fetch_report_weather()
-        params = mock_fetch.call_args[0][0]
-        assert params["forecast_days"] == 2
-        assert "apparent_temperature_max" in params["daily"]
-        assert "wind_gusts_10m_max" in params["daily"]
-        assert "rain_sum" in params["daily"]
-        assert "sunrise" in params["daily"]
-        assert "sunset" in params["daily"]
-        assert "wind_gusts_10m" in params["current"]
+            weather.fetch_report_weather(LAT, LON, TZ)
+        extra = mock_fetch.call_args[0][3]
+        assert extra["forecast_days"] == 2
+        assert "apparent_temperature_max" in extra["daily"]
+        assert "wind_gusts_10m_max" in extra["daily"]
+        assert "rain_sum" in extra["daily"]
+        assert "sunrise" in extra["daily"]
+        assert "sunset" in extra["daily"]
+        assert "wind_gusts_10m" in extra["current"]
+
+    def test_fetch_passes_coordinates(self):
+        with patch("weather._weather_api") as mock_api:
+            mock_api.get.return_value = {}
+            weather.fetch(LAT, LON, TZ, {"forecast_days": 1})
+        params = mock_api.get.call_args.kwargs["params"]
+        assert params["latitude"] == LAT
+        assert params["longitude"] == LON
+        assert params["timezone"] == TZ
