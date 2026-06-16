@@ -169,6 +169,37 @@ class TestSendDailyReport:
             jobs.send_daily_report()  # must not raise
         mock_log.exception.assert_called_once()
 
+    def test_hourly_section_appears_in_message(self):
+        from datetime import date
+        today = date.today()
+        times = [f"{today}T{h:02d}:00" for h in range(6, 23)]
+        data = {
+            **REPORT_DATA,
+            "hourly": {
+                "time": times,
+                "precipitation_probability": [10.0] * len(times),
+                "rain": [0.0] * len(times),
+                "temperature_2m": [85.0] * len(times),
+                "apparent_temperature": [88.0] * len(times),
+                "wind_gusts_10m": [12.0] * len(times),
+                "weather_code": [2] * len(times),
+            },
+        }
+        with patch("jobs.fetch_report_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.send_daily_report()
+        message = mock_notify.call_args[0][0]
+        assert "Hourly:" in message
+        assert "85°F" in message
+        assert "10%" in message
+
+    def test_no_hourly_section_when_no_data(self):
+        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.send_daily_report()
+        message = mock_notify.call_args[0][0]
+        assert "Hourly:" not in message
+
 
 # ---------------------------------------------------------------------------
 # check_weather_alerts — rain

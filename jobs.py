@@ -63,6 +63,21 @@ def send_daily_report() -> None:
         if tips:
             message += "\n" + "\n".join(tips)
 
+        h = data["hourly"]
+        today = datetime.now(EASTERN).date()
+        hourly_lines = []
+        for i, t in enumerate(h["time"]):
+            dt = datetime.fromisoformat(t).replace(tzinfo=EASTERN)
+            if dt.date() != today or not (6 <= dt.hour <= 22):
+                continue
+            cond = WMO.get(int(h["weather_code"][i]), "Unknown")
+            temp = h["temperature_2m"][i]
+            rain = int(h["precipitation_probability"][i])
+            time_str = dt.strftime("%I %p").lstrip("0")
+            hourly_lines.append(f"{time_str:>6}  {cond}  {temp:.0f}°F  {rain}%")
+        if hourly_lines:
+            message += "\n\nHourly:\n" + "\n".join(hourly_lines)
+
         send_notification(message, title="Daily Weather Report", tags="sun_with_face")
         db.record_report("daily", message)
         log.info("Daily report sent")
