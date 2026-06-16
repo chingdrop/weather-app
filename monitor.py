@@ -48,12 +48,12 @@ class ThresholdAlertConfig(AlertConfig):
     Adding a new alert type means adding one instance in LocationMonitor.create().
     """
     threshold: float = 0.0
-    value_index: int = 0              # index into the hourly tuple
-    current_key: str = ""             # key in data["current"] for the live reading
-    summary_template: str = ""        # .format(peak=..., time_range=...)
-    hourly_prefix: str = ""           # e.g. "Feels like " for heat/frost
-    hourly_unit: str = ""             # e.g. " mph", "°F"
-    exceeds: bool = True              # True: alert when value > threshold; False: when value < threshold
+    value_index: int = 0  # index into the hourly tuple
+    current_key: str = ""  # key in data["current"] for the live reading
+    summary_template: str = ""  # .format(peak=..., time_range=...)
+    hourly_prefix: str = ""  # e.g. "Feels like " for heat/frost
+    hourly_unit: str = ""  # e.g. " mph", "°F"
+    exceeds: bool = True  # True: alert when value > threshold; False: when value < threshold
     last_peak: float | None = field(default=None)
 
 

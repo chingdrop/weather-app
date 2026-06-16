@@ -161,7 +161,7 @@ def check_weather_alerts(monitor: LocationMonitor) -> None:
         ]
         current_rain_code = all_rain[0][3] if all_rain else None
         rain_code_changed = (
-            bool(rain_hours) and monitor.rain.last_code is not None and current_rain_code != monitor.rain.last_code
+                bool(rain_hours) and monitor.rain.last_code is not None and current_rain_code != monitor.rain.last_code
         )
         if rain_hours and (_time_due(monitor.rain) or rain_code_changed):
             start_time = _fmt(all_rain[0][0])
@@ -177,7 +177,8 @@ def check_weather_alerts(monitor: LocationMonitor) -> None:
                 f"{condition} — up to {max_prob:.0f}% chance\n\n"
                 f"{hourly}"
             )
-            send_notification(message, topic=monitor.cfg.ntfy_topic, title="Rain Alert", tags="rain_cloud", priority="high")
+            send_notification(message, topic=monitor.cfg.ntfy_topic, title="Rain Alert", tags="rain_cloud",
+                              priority="high")
             db.record_alert(monitor.location_id, "rain", message)
             monitor.rain.cooldown_secs = _event_secs(all_rain, 7200.0)
             monitor.rain.last_code = current_rain_code
@@ -208,7 +209,8 @@ def check_weather_alerts(monitor: LocationMonitor) -> None:
                 message = alert.summary_template.format(peak=peak, time_range=time_range)
                 if hourly:
                     message += f"\n\n{hourly}"
-                send_notification(message, topic=monitor.cfg.ntfy_topic, title=alert.title, tags=alert.tags, priority="high")
+                send_notification(message, topic=monitor.cfg.ntfy_topic, title=alert.title, tags=alert.tags,
+                                  priority="high")
                 db.record_alert(monitor.location_id, alert.name, message)
                 alert.cooldown_secs = _event_secs(qualifying, alert.default_cooldown_secs)
                 alert.last_peak = peak

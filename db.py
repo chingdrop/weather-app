@@ -81,17 +81,17 @@ def init_db() -> None:
 
 
 def upsert_location(
-    name: str,
-    lat: float,
-    lon: float,
-    tz_name: str,
-    ntfy_topic: str,
-    rain_prob_alert_percent: float | None = None,
-    rain_amount_alert_in: float | None = None,
-    wind_gust_alert_mph: float | None = None,
-    heat_index_alert_f: float | None = None,
-    frost_temp_alert_f: float | None = None,
-    uv_index_alert: int | None = None,
+        name: str,
+        lat: float,
+        lon: float,
+        tz_name: str,
+        ntfy_topic: str,
+        rain_prob_alert_percent: float | None = None,
+        rain_amount_alert_in: float | None = None,
+        wind_gust_alert_mph: float | None = None,
+        heat_index_alert_f: float | None = None,
+        frost_temp_alert_f: float | None = None,
+        uv_index_alert: int | None = None,
 ) -> int:
     with Session(_require_engine()) as session:
         loc = session.query(Location).filter_by(name=name).first()
@@ -125,13 +125,15 @@ def upsert_location(
 
 def record_report(location_id: int, report_type: str, message: str) -> None:
     with Session(_require_engine()) as session:
-        session.add(Report(location_id=location_id, type=report_type, message=message, created_at=datetime.now(timezone.utc)))
+        session.add(
+            Report(location_id=location_id, type=report_type, message=message, created_at=datetime.now(timezone.utc)))
         session.commit()
 
 
 def record_alert(location_id: int, alert_type: str, message: str) -> None:
     with Session(_require_engine()) as session:
-        session.add(Alert(location_id=location_id, type=alert_type, message=message, created_at=datetime.now(timezone.utc)))
+        session.add(
+            Alert(location_id=location_id, type=alert_type, message=message, created_at=datetime.now(timezone.utc)))
         session.commit()
 
 
