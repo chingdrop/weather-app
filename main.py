@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+_dev = os.environ.get("FLASK_DEBUG", "0") == "1"
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify, request
 
@@ -15,8 +17,8 @@ from notifier import NTFY_TOPIC
 from weather import EASTERN
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
+    level=logging.DEBUG if _dev else logging.WARNING,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger(__name__)
@@ -59,7 +61,14 @@ def report():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+DAILY_REPORT_HOUR = int(os.environ.get("DAILY_REPORT_HOUR", "7"))
+ALERT_INTERVAL_MIN = int(os.environ.get("ALERT_INTERVAL_MIN", "15"))
+
+
 def _startup() -> None:
+    mode = "development" if _dev else "production"
+    log.warning("Starting weather-app [%s]", mode)
+    log.warning("DB: %s | NTFY topic: %s", db.DB_PATH, NTFY_TOPIC)
     db.init_db()
     init_cooldowns()
     scheduler = BackgroundScheduler(timezone=EASTERN)
@@ -67,6 +76,11 @@ def _startup() -> None:
     scheduler.add_job(check_weather_alerts, "interval", minutes=30)
     scheduler.start()
     atexit.register(scheduler.shutdown)
+    log.warning(
+        "Scheduler started — daily report %02d:00, alerts every %d min",
+        DAILY_REPORT_HOUR,
+        ALERT_INTERVAL_MIN,
+    )
 
 
 if __name__ == "__main__":
