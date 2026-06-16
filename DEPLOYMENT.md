@@ -69,8 +69,8 @@ Adds `restart: unless-stopped`, healthchecks, ntfy exposed on all interfaces for
 
 ## Notes
 
-**One instance only.** The app embeds APScheduler inside the Flask process. Do not run multiple replicas or workers —
-the daily report and alert jobs would fire multiple times.
+**One instance only.** The app embeds APScheduler inside the Flask process. Gunicorn is intentionally configured with
+`--workers 1` for this reason — multiple workers would cause every scheduled job to fire once per worker.
 
 **Network access.** The port is bound to `127.0.0.1:5000` by default, so it is only reachable from inside the VM. To
 expose it on your LAN or over Tailscale, either:
@@ -78,8 +78,11 @@ expose it on your LAN or over Tailscale, either:
 - Change the port binding in `docker-compose.yml` to `"5000:5000"`, or
 - Put a reverse proxy (Caddy, nginx) in front of it on the same VM.
 
+**Database persistence.** The SQLite database is stored in `./data/weather.db` on the host, mounted into the container
+at `/data`. This directory is excluded from git. Back it up alongside `.env` when moving to a new host.
+
 **Portability.** The image has no baked-in secrets. Moving to a new Proxmox host is: copy the project directory, copy
-`.env`, run `docker compose up -d --build`.
+`.env`, copy `./data/`, run `docker compose up -d --build`.
 
 ---
 

@@ -39,9 +39,10 @@ Edit `.env`:
 | `LAT`                     | Latitude of your location                                                          | `XX.XXXX`          |
 | `LON`                     | Longitude of your location                                                         | `-YY.YYYY`         |
 | `TIMEZONE`                | [IANA timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) | `America/New_York` |
+| `DB_PATH`                 | Path to the SQLite database file                                                   | `weather.db`       |
 | `HOST`                    | Bind address (`127.0.0.1` for local dev, `0.0.0.0` inside Docker)                  | `127.0.0.1`        |
 | `PORT`                    | Port to listen on                                                                  | `5000`             |
-| `FLASK_DEBUG`             | Set to `1` for debug mode                                                          | `0`                |
+| `FLASK_DEBUG`             | Set to `1` for debug mode (local dev only, ignored by gunicorn)                    | `0`                |
 | `RAIN_PROB_ALERT_PERCENT` | Rain probability threshold for alerts (%)                                          | `50`               |
 | `RAIN_AMOUNT_ALERT_IN`    | Rain amount threshold for alerts (inches)                                          | `0.05`             |
 | `WIND_GUST_ALERT_MPH`     | Wind gust threshold for alerts (mph)                                               | `30`               |
@@ -70,10 +71,12 @@ access.
 
 ## API endpoints
 
-| Method | Path      | Description                                                             |
-|--------|-----------|-------------------------------------------------------------------------|
-| `GET`  | `/report` | Sends a current conditions notification and returns the message as JSON |
-| `GET`  | `/health` | Returns `{"status": "ok"}` — useful for uptime monitoring               |
+| Method | Path                    | Description                                                             |
+|--------|-------------------------|-------------------------------------------------------------------------|
+| `GET`  | `/report`               | Sends a current conditions notification and returns the message as JSON |
+| `GET`  | `/health`               | Returns `{"status": "ok"}` — useful for uptime monitoring               |
+| `GET`  | `/history/reports`      | Returns past reports. Optional `?type=daily\|quick` and `?limit=N`     |
+| `GET`  | `/history/alerts`       | Returns past alerts. Optional `?type=rain\|wind\|heat` and `?limit=N`  |
 
 ## Tests
 
@@ -87,10 +90,15 @@ pytest
 adapter.py      # Generic HTTP client (retries, content-type parsing)
 weather.py      # Open-Meteo client, WMO codes, fetch helpers, compass
 notifier.py     # ntfy client and send_notification
-main.py         # Flask app, scheduled tasks, alert thresholds, entry point
+db.py           # SQLAlchemy models (Report, Alert) and database queries
+jobs.py         # Scheduled job functions — daily report, alerts, quick report
+main.py         # Flask app, routes, startup wiring
+wsgi.py         # Gunicorn entry point
 tests/
   test_adapter.py
   test_weather.py
   test_notifier.py
+  test_db.py
+  test_jobs.py
   test_main.py
 ```
