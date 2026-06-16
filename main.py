@@ -1,6 +1,7 @@
 import atexit
 import logging
 import os
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -71,9 +72,16 @@ def _startup() -> None:
     log.warning("DB: %s | NTFY topic: %s", db.DB_PATH, NTFY_TOPIC)
     db.init_db()
     init_cooldowns()
+
+    last_daily = db.get_last_report_time("daily")
+    today = datetime.now(EASTERN).date()
+    if last_daily is None or last_daily.astimezone(EASTERN).date() < today:
+        log.warning("No daily report sent today — sending now")
+        send_daily_report()
+
     scheduler = BackgroundScheduler(timezone=EASTERN)
-    scheduler.add_job(send_daily_report, "cron", hour=7, minute=0)
-    scheduler.add_job(check_weather_alerts, "interval", minutes=30)
+    scheduler.add_job(send_daily_report, "cron", hour=DAILY_REPORT_HOUR, minute=0)
+    scheduler.add_job(check_weather_alerts, "interval", minutes=ALERT_INTERVAL_MIN)
     scheduler.start()
     atexit.register(scheduler.shutdown)
     log.warning(

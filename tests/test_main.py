@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -116,3 +116,36 @@ class TestHistoryAlertsRoute:
         import db as db_module
         db_module.record_report("daily", "report")
         assert client.get("/history/alerts").get_json() == []
+
+
+# ---------------------------------------------------------------------------
+# _startup — catch-up daily report
+# ---------------------------------------------------------------------------
+
+class TestStartupDailyReport:
+    def _run_startup(self):
+        mock_sched = MagicMock()
+        with patch("main.BackgroundScheduler", return_value=mock_sched), \
+                patch("main.send_daily_report") as mock_report:
+            main._startup()
+        return mock_report
+
+    def test_sends_report_when_none_recorded_today(self):
+        mock_report = self._run_startup()
+        mock_report.assert_called_once()
+
+    def test_skips_report_when_already_sent_today(self):
+        import db as db_module
+        db_module.record_report("daily", "already sent")
+        mock_report = self._run_startup()
+        mock_report.assert_not_called()
+
+    def test_sends_report_when_last_was_yesterday(self):
+        from datetime import timedelta, timezone
+        import db as db_module
+        yesterday = __import__("datetime").datetime.now(timezone.utc) - timedelta(days=1)
+        with db_module.Session(db_module._require_engine()) as session:
+            session.add(db_module.Report(type="daily", message="yesterday", created_at=yesterday))
+            session.commit()
+        mock_report = self._run_startup()
+        mock_report.assert_called_once()

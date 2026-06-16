@@ -81,6 +81,17 @@ def get_alerts(alert_type: str | None = None, limit: int = 50) -> list[dict]:
         return [_row_to_dict(a) for a in q.limit(limit).all()]
 
 
+def get_last_report_time(report_type: str) -> datetime | None:
+    with Session(_require_engine()) as session:
+        row = (
+            session.query(Report)
+            .filter(Report.type == report_type)
+            .order_by(Report.id.desc())
+            .first()
+        )
+        return row.created_at if row else None
+
+
 def get_last_alert_time(alert_type: str) -> datetime | None:
     with Session(_require_engine()) as session:
         row = (

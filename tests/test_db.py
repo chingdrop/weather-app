@@ -106,6 +106,19 @@ class TestGetAlerts:
         assert db.get_alerts(alert_type="unknown") == []
 
 
+class TestGetLastReportTime:
+    def test_returns_none_when_no_reports(self):
+        assert db.get_last_report_time("daily") is None
+
+    def test_returns_timestamp_after_report(self):
+        db.record_report("daily", "morning report")
+        assert db.get_last_report_time("daily") is not None
+
+    def test_filters_by_type(self):
+        db.record_report("quick", "quick report")
+        assert db.get_last_report_time("daily") is None
+
+
 class TestGetLastAlertTime:
     def test_returns_none_when_no_alerts(self):
         assert db.get_last_alert_time("rain") is None
