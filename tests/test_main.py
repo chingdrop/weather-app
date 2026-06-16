@@ -361,47 +361,69 @@ class TestReportRoute:
 
 
 # ---------------------------------------------------------------------------
-# /history route
+# /history/reports and /history/alerts routes
 # ---------------------------------------------------------------------------
 
-class TestHistoryRoute:
+class TestHistoryReportsRoute:
     def test_empty_initially(self, client):
-        resp = client.get("/history")
-        assert resp.status_code == 200
-        assert resp.get_json() == []
+        assert client.get("/history/reports").get_json() == []
 
-    def test_returns_recorded_events(self, client):
+    def test_returns_recorded_reports(self, client):
         import db as db_module
-        db_module.record_event("daily_report", "morning report")
-        resp = client.get("/history")
-        data = resp.get_json()
+        db_module.record_report("daily", "morning report")
+        data = client.get("/history/reports").get_json()
         assert len(data) == 1
-        assert data[0]["type"] == "daily_report"
+        assert data[0]["type"] == "daily"
         assert data[0]["message"] == "morning report"
 
     def test_filter_by_type(self, client):
         import db as db_module
-        db_module.record_event("daily_report", "report")
-        db_module.record_event("rain_alert", "alert")
-        resp = client.get("/history?type=rain_alert")
-        data = resp.get_json()
+        db_module.record_report("daily", "daily")
+        db_module.record_report("quick", "quick")
+        data = client.get("/history/reports?type=daily").get_json()
         assert len(data) == 1
-        assert data[0]["type"] == "rain_alert"
+        assert data[0]["type"] == "daily"
 
     def test_limit_param(self, client):
         import db as db_module
         for i in range(5):
-            db_module.record_event("quick_report", f"report {i}")
-        data = client.get("/history?limit=3").get_json()
-        assert len(data) == 3
+            db_module.record_report("quick", f"report {i}")
+        assert len(client.get("/history/reports?limit=3").get_json()) == 3
 
     def test_invalid_limit_returns_400(self, client):
-        resp = client.get("/history?limit=abc")
-        assert resp.status_code == 400
+        assert client.get("/history/reports?limit=abc").status_code == 400
 
-    def test_limit_capped_at_200(self, client):
+
+class TestHistoryAlertsRoute:
+    def test_empty_initially(self, client):
+        assert client.get("/history/alerts").get_json() == []
+
+    def test_returns_recorded_alerts(self, client):
         import db as db_module
-        for i in range(10):
-            db_module.record_event("quick_report", f"report {i}")
-        data = client.get("/history?limit=999").get_json()
-        assert len(data) == 10  # only 10 records exist, so all returned
+        db_module.record_alert("rain", "rain alert")
+        data = client.get("/history/alerts").get_json()
+        assert len(data) == 1
+        assert data[0]["type"] == "rain"
+        assert data[0]["message"] == "rain alert"
+
+    def test_filter_by_type(self, client):
+        import db as db_module
+        db_module.record_alert("rain", "rain")
+        db_module.record_alert("wind", "wind")
+        data = client.get("/history/alerts?type=wind").get_json()
+        assert len(data) == 1
+        assert data[0]["type"] == "wind"
+
+    def test_limit_param(self, client):
+        import db as db_module
+        for i in range(5):
+            db_module.record_alert("heat", f"alert {i}")
+        assert len(client.get("/history/alerts?limit=3").get_json()) == 3
+
+    def test_invalid_limit_returns_400(self, client):
+        assert client.get("/history/alerts?limit=abc").status_code == 400
+
+    def test_reports_not_visible_in_alerts(self, client):
+        import db as db_module
+        db_module.record_report("daily", "report")
+        assert client.get("/history/alerts").get_json() == []

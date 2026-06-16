@@ -72,7 +72,7 @@ def send_daily_report() -> None:
             message += "\n" + "\n".join(tips)
 
         send_notification(message, title="Daily Weather Report", tags="sun_with_face")
-        db.record_event("daily_report", message)
+        db.record_report("daily", message)
         log.info("Daily report sent")
     except Exception:
         log.exception("Daily report failed")
@@ -121,7 +121,7 @@ def check_weather_alerts() -> None:
                     f"{condition} — up to {max_prob:.0f}% chance in the next few hours"
                 )
                 send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
-                db.record_event("rain_alert", message)
+                db.record_alert("rain", message)
                 _last_rain_alert = now
                 log.info("Rain alert sent")
 
@@ -133,7 +133,7 @@ def check_weather_alerts() -> None:
                     f"Secure shade cloth, buckets, and lightweight gear."
                 )
                 send_notification(message, title="Wind Gust Alert", tags="wind_face", priority="high")
-                db.record_event("wind_alert", message)
+                db.record_alert("wind", message)
                 _last_wind_alert = now
                 log.info("Wind alert sent")
 
@@ -142,7 +142,7 @@ def check_weather_alerts() -> None:
             if peak_heat >= HEAT_INDEX_ALERT_F:
                 message = f"Heat risk high. Feels-like temperature may reach {peak_heat:.0f}°F."
                 send_notification(message, title="Heat Risk Alert", tags="thermometer", priority="high")
-                db.record_event("heat_alert", message)
+                db.record_alert("heat", message)
                 _last_heat_alert = now
                 log.info("Heat alert sent")
 
@@ -164,7 +164,7 @@ def send_quick_report() -> str:
         f"Precip: {c['precipitation']:.2f}\""
     )
     send_notification(message, title="Current Conditions", tags="partly_sunny")
-    db.record_event("quick_report", message)
+    db.record_report("quick", message)
     return message
 
 
@@ -173,14 +173,24 @@ def health():
     return jsonify({"status": "ok"})
 
 
-@app.route("/history")
-def history():
-    event_type = request.args.get("type") or None
+@app.route("/history/reports")
+def history_reports():
+    report_type = request.args.get("type") or None
     try:
         limit = min(int(request.args.get("limit", 50)), 200)
     except ValueError:
         return jsonify({"status": "error", "message": "limit must be an integer"}), 400
-    return jsonify(db.get_events(event_type=event_type, limit=limit))
+    return jsonify(db.get_reports(report_type=report_type, limit=limit))
+
+
+@app.route("/history/alerts")
+def history_alerts():
+    alert_type = request.args.get("type") or None
+    try:
+        limit = min(int(request.args.get("limit", 50)), 200)
+    except ValueError:
+        return jsonify({"status": "error", "message": "limit must be an integer"}), 400
+    return jsonify(db.get_alerts(alert_type=alert_type, limit=limit))
 
 
 @app.route("/report")

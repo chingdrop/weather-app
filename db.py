@@ -1,41 +1,74 @@
 import os
-import sqlite3
 from datetime import datetime, timezone
 
+from sqlalchemy import DateTime, String, Text, create_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
+
 DB_PATH = os.environ.get("DB_PATH", "weather.db")
+_engine = None
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    type: Mapped[str] = mapped_column(String(20))
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    type: Mapped[str] = mapped_column(String(20))
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 def init_db() -> None:
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS weather_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT NOT NULL,
-                message TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-        """)
+    global _engine
+    _engine = create_engine(f"sqlite:///{DB_PATH}")
+    Base.metadata.create_all(_engine)
 
 
-def record_event(event_type: str, message: str) -> None:
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            "INSERT INTO weather_events (type, message, created_at) VALUES (?, ?, ?)",
-            (event_type, message, datetime.now(timezone.utc).isoformat()),
-        )
+def record_report(report_type: str, message: str) -> None:
+    with Session(_engine) as session:
+        session.add(Report(type=report_type, message=message, created_at=datetime.now(timezone.utc)))
+        session.commit()
 
 
-def get_events(event_type: str | None = None, limit: int = 50) -> list[dict]:
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        if event_type:
-            rows = conn.execute(
-                "SELECT * FROM weather_events WHERE type = ? ORDER BY id DESC LIMIT ?",
-                (event_type, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM weather_events ORDER BY id DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-    return [dict(r) for r in rows]
+def record_alert(alert_type: str, message: str) -> None:
+    with Session(_engine) as session:
+        session.add(Alert(type=alert_type, message=message, created_at=datetime.now(timezone.utc)))
+        session.commit()
+
+
+def _row_to_dict(obj) -> dict:
+    result = {}
+    for col in obj.__table__.columns:
+        val = getattr(obj, col.name)
+        if isinstance(val, datetime):
+            val = val.isoformat()
+        result[col.name] = val
+    return result
+
+
+def get_reports(report_type: str | None = None, limit: int = 50) -> list[dict]:
+    with Session(_engine) as session:
+        q = session.query(Report).order_by(Report.id.desc())
+        if report_type:
+            q = q.filter(Report.type == report_type)
+        return [_row_to_dict(r) for r in q.limit(limit).all()]
+
+
+def get_alerts(alert_type: str | None = None, limit: int = 50) -> list[dict]:
+    with Session(_engine) as session:
+        q = session.query(Alert).order_by(Alert.id.desc())
+        if alert_type:
+            q = q.filter(Alert.type == alert_type)
+        return [_row_to_dict(a) for a in q.limit(limit).all()]
