@@ -10,7 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify, request
 
 import db
-from jobs import check_weather_alerts, send_daily_report, send_quick_report
+from jobs import check_weather_alerts, init_cooldowns, send_daily_report, send_quick_report
 from notifier import NTFY_TOPIC
 from weather import EASTERN
 
@@ -59,6 +59,16 @@ def report():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+def _startup() -> None:
+    db.init_db()
+    init_cooldowns()
+    scheduler = BackgroundScheduler(timezone=EASTERN)
+    scheduler.add_job(send_daily_report, "cron", hour=7, minute=0)
+    scheduler.add_job(check_weather_alerts, "interval", minutes=30)
+    scheduler.start()
+    atexit.register(scheduler.shutdown)
+
+
 if __name__ == "__main__":
     if not NTFY_TOPIC:
         raise SystemExit("NTFY_TOPIC environment variable is required — copy .env.example to .env and set it")
@@ -67,11 +77,5 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
 
-    db.init_db()
-
-    scheduler = BackgroundScheduler(timezone=EASTERN)
-    scheduler.add_job(send_daily_report, "cron", hour=7, minute=0)
-    scheduler.add_job(check_weather_alerts, "interval", minutes=30)
-    scheduler.start()
-    atexit.register(scheduler.shutdown)
+    _startup()
     app.run(host=host, port=port, debug=debug, use_reloader=False)

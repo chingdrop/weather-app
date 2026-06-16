@@ -1,5 +1,7 @@
 from sqlalchemy import inspect
 
+import pytest
+
 import db
 
 
@@ -103,3 +105,35 @@ class TestGetAlerts:
     def test_unknown_type_returns_empty(self):
         db.record_alert("rain", "alert")
         assert db.get_alerts(alert_type="unknown") == []
+
+
+class TestGetLastAlertTime:
+    def test_returns_none_when_no_alerts(self):
+        assert db.get_last_alert_time("rain") is None
+
+    def test_returns_timestamp_after_alert(self):
+        db.record_alert("rain", "alert")
+        result = db.get_last_alert_time("rain")
+        assert result is not None
+
+    def test_returns_most_recent(self):
+        db.record_alert("rain", "first")
+        db.record_alert("rain", "second")
+        result = db.get_last_alert_time("rain")
+        assert result is not None
+
+    def test_filters_by_type(self):
+        db.record_alert("rain", "rain alert")
+        assert db.get_last_alert_time("wind") is None
+
+
+class TestRequireEngine:
+    def test_raises_before_init(self, tmp_path):
+        import db as db_module
+        original_engine = db_module._engine
+        db_module._engine = None
+        try:
+            with pytest.raises(RuntimeError, match="db.init_db()"):
+                db_module.get_reports()
+        finally:
+            db_module._engine = original_engine

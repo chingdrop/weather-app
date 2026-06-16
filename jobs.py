@@ -18,6 +18,13 @@ _last_wind_alert: datetime | None = None
 _last_heat_alert: datetime | None = None
 
 
+def init_cooldowns() -> None:
+    global _last_rain_alert, _last_wind_alert, _last_heat_alert
+    _last_rain_alert = db.get_last_alert_time("rain")
+    _last_wind_alert = db.get_last_alert_time("wind")
+    _last_heat_alert = db.get_last_alert_time("heat")
+
+
 def send_daily_report() -> None:
     try:
         data = fetch_report_weather()
@@ -135,6 +142,9 @@ def check_weather_alerts() -> None:
         log.exception("Weather alert check failed")
 
 
+# Intentionally lets exceptions propagate — the /report route handler catches them.
+# send_daily_report and check_weather_alerts swallow exceptions because they run
+# in the scheduler and a raised exception would silence future job runs.
 def send_quick_report() -> str:
     data = fetch_report_weather()
     c = data["current"]

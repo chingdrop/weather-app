@@ -20,6 +20,36 @@ def reset_cooldowns():
     jobs._last_heat_alert = None
 
 
+# ---------------------------------------------------------------------------
+# init_cooldowns
+# ---------------------------------------------------------------------------
+
+class TestInitCooldowns:
+    def test_all_none_when_no_alerts_in_db(self):
+        jobs.init_cooldowns()
+        assert jobs._last_rain_alert is None
+        assert jobs._last_wind_alert is None
+        assert jobs._last_heat_alert is None
+
+    def test_seeds_from_db(self):
+        import db as db_module
+        db_module.record_alert("rain", "a rain alert")
+        jobs.init_cooldowns()
+        assert jobs._last_rain_alert is not None
+        assert jobs._last_wind_alert is None
+        assert jobs._last_heat_alert is None
+
+    def test_seeds_all_types(self):
+        import db as db_module
+        db_module.record_alert("rain", "rain")
+        db_module.record_alert("wind", "wind")
+        db_module.record_alert("heat", "heat")
+        jobs.init_cooldowns()
+        assert jobs._last_rain_alert is not None
+        assert jobs._last_wind_alert is not None
+        assert jobs._last_heat_alert is not None
+
+
 def _future_times(count: int) -> list[str]:
     now = datetime.now(EASTERN)
     return [(now + timedelta(hours=i + 1)).strftime("%Y-%m-%dT%H:00") for i in range(count)]

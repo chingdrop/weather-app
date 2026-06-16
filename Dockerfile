@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY adapter.py weather.py notifier.py main.py ./
+COPY *.py ./
 
 ENV HOST=0.0.0.0 \
     PORT=5000 \
@@ -13,4 +13,4 @@ ENV HOST=0.0.0.0 \
 
 EXPOSE 5000
 
-CMD ["python", "main.py"]
+CMD gunicorn --workers 1 --bind "0.0.0.0:${PORT}" wsgi:app
