@@ -71,12 +71,12 @@ access.
 
 ## API endpoints
 
-| Method | Path                    | Description                                                             |
-|--------|-------------------------|-------------------------------------------------------------------------|
-| `GET`  | `/report`               | Sends a current conditions notification and returns the message as JSON |
-| `GET`  | `/health`               | Returns `{"status": "ok"}` — useful for uptime monitoring               |
-| `GET`  | `/history/reports`      | Returns past reports. Optional `?type=daily\|quick` and `?limit=N`     |
-| `GET`  | `/history/alerts`       | Returns past alerts. Optional `?type=rain\|wind\|heat` and `?limit=N`  |
+| Method | Path               | Description                                                             |
+|--------|--------------------|-------------------------------------------------------------------------|
+| `GET`  | `/report`          | Sends a current conditions notification and returns the message as JSON |
+| `GET`  | `/health`          | Returns `{"status": "ok"}` — useful for uptime monitoring               |
+| `GET`  | `/history/reports` | Returns past reports. Optional `?type=daily\|quick` and `?limit=N`      |
+| `GET`  | `/history/alerts`  | Returns past alerts. Optional `?type=rain\|wind\|heat` and `?limit=N`   |
 
 ## Tests
 

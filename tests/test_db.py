@@ -1,6 +1,5 @@
-from sqlalchemy import inspect
-
 import pytest
+from sqlalchemy import inspect
 
 import db
 
