@@ -101,7 +101,10 @@ def check_weather_alerts() -> None:
         h = data["hourly"]
         c = data["current"]
 
-        upcoming = [
+        def _fmt(iso: str) -> str:
+            return datetime.fromisoformat(iso).strftime("%I %p").lstrip("0")
+
+        all_future = [
             (
                 h["time"][i],
                 h["precipitation_probability"][i],
@@ -112,7 +115,8 @@ def check_weather_alerts() -> None:
             )
             for i in range(len(h["time"]))
             if datetime.fromisoformat(h["time"][i]).replace(tzinfo=EASTERN) > now
-        ][:3]
+        ]
+        upcoming = all_future[:3]
 
         if rain_due:
             rain_hours = [
@@ -120,12 +124,22 @@ def check_weather_alerts() -> None:
                 if r[1] >= RAIN_PROB_ALERT_PERCENT or r[2] >= RAIN_AMOUNT_ALERT_IN or r[3] in RAIN_CODES
             ]
             if rain_hours:
-                first_time = datetime.fromisoformat(rain_hours[0][0]).strftime("%I:%M %p")
+                all_rain = [
+                    r for r in all_future
+                    if r[1] >= RAIN_PROB_ALERT_PERCENT or r[2] >= RAIN_AMOUNT_ALERT_IN or r[3] in RAIN_CODES
+                ]
+                start_time = _fmt(all_rain[0][0])
+                end_time = _fmt(all_rain[-1][0])
                 max_prob = max(r[1] for r in rain_hours)
                 condition = WMO.get(rain_hours[0][3], "Rain")
+                hourly = "\n".join(
+                    f"{_fmt(r[0]):>6}  {WMO.get(r[3], 'Rain')}  {r[1]:.0f}%"
+                    for r in all_rain
+                )
                 message = (
-                    f"Rain likely around {first_time}. Outdoor work window is closing.\n"
-                    f"{condition} — up to {max_prob:.0f}% chance in the next few hours"
+                    f"Rain likely {start_time}–{end_time}. Outdoor work window is closing.\n"
+                    f"{condition} — up to {max_prob:.0f}% chance\n\n"
+                    f"{hourly}"
                 )
                 send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
                 db.record_alert("rain", message)
@@ -135,9 +149,13 @@ def check_weather_alerts() -> None:
         if wind_due:
             peak_gusts = max(c["wind_gusts_10m"], max((r[4] for r in upcoming), default=0))
             if peak_gusts >= WIND_GUST_ALERT_MPH:
+                wind_hours = [r for r in all_future if r[4] >= WIND_GUST_ALERT_MPH]
+                time_range = f" from {_fmt(wind_hours[0][0])} to {_fmt(wind_hours[-1][0])}" if wind_hours else ""
+                hourly = "\n".join(f"{_fmt(r[0]):>6}  {r[4]:.0f} mph" for r in wind_hours)
                 message = (
-                    f"Wind gusts may reach {peak_gusts:.0f} mph. "
+                    f"Wind gusts up to {peak_gusts:.0f} mph{time_range}. "
                     f"Secure shade cloth, buckets, and lightweight gear."
+                    + (f"\n\n{hourly}" if hourly else "")
                 )
                 send_notification(message, title="Wind Gust Alert", tags="wind_face", priority="high")
                 db.record_alert("wind", message)
@@ -147,7 +165,13 @@ def check_weather_alerts() -> None:
         if heat_due:
             peak_heat = max(c["apparent_temperature"], max((r[5] for r in upcoming), default=0))
             if peak_heat >= HEAT_INDEX_ALERT_F:
-                message = f"Heat risk high. Feels-like temperature may reach {peak_heat:.0f}°F."
+                heat_hours = [r for r in all_future if r[5] >= HEAT_INDEX_ALERT_F]
+                time_range = f" from {_fmt(heat_hours[0][0])} to {_fmt(heat_hours[-1][0])}" if heat_hours else ""
+                hourly = "\n".join(f"{_fmt(r[0]):>6}  Feels like {r[5]:.0f}°F" for r in heat_hours)
+                message = (
+                    f"Heat risk high{time_range}. Feels-like temperature may reach {peak_heat:.0f}°F."
+                    + (f"\n\n{hourly}" if hourly else "")
+                )
                 send_notification(message, title="Heat Risk Alert", tags="thermometer", priority="high")
                 db.record_alert("heat", message)
                 _last_heat_alert = now

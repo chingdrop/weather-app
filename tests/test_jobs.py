@@ -251,6 +251,16 @@ class TestRainAlert:
             jobs.check_weather_alerts()
         assert jobs._last_rain_alert is not None
 
+    def test_rain_alert_includes_start_and_end_times(self):
+        times = _future_times(3)
+        data = _alert_data(times, [80.0, 75.0, 60.0], [0.1, 0.2, 0.1], [61, 63, 61], [10.0, 10.0, 10.0], [82.0, 82.0, 82.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        rain_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Rain Alert")
+        message = rain_call.args[0]
+        assert "–" in message
+
 
 # ---------------------------------------------------------------------------
 # check_weather_alerts — wind
@@ -307,6 +317,17 @@ class TestWindAlert:
             jobs.check_weather_alerts()
         assert jobs._last_wind_alert is not None
 
+    def test_wind_alert_includes_time_range(self):
+        times = _future_times(3)
+        data = _alert_data(times, [5.0, 5.0, 5.0], [0.0, 0.0, 0.0], [0, 0, 0], [35.0, 38.0, 32.0], [82.0, 82.0, 82.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        wind_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Wind Gust Alert")
+        message = wind_call.args[0]
+        assert "from" in message
+        assert "to" in message
+
 
 # ---------------------------------------------------------------------------
 # check_weather_alerts — heat
@@ -362,6 +383,17 @@ class TestHeatAlert:
                 patch("jobs.send_notification"):
             jobs.check_weather_alerts()
         assert jobs._last_heat_alert is not None
+
+    def test_heat_alert_includes_time_range(self):
+        times = _future_times(3)
+        data = _alert_data(times, [5.0, 5.0, 5.0], [0.0, 0.0, 0.0], [0, 0, 0], [10.0, 10.0, 10.0], [103.0, 106.0, 101.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        heat_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Heat Risk Alert")
+        message = heat_call.args[0]
+        assert "from" in message
+        assert "to" in message
 
 
 # ---------------------------------------------------------------------------
