@@ -8,8 +8,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
+import db
 from notifier import NTFY_TOPIC, send_notification
 from weather import EASTERN, RAIN_CODES, WMO, compass, fetch_rain_check_weather, fetch_report_weather
 
@@ -71,6 +72,7 @@ def send_daily_report() -> None:
             message += "\n" + "\n".join(tips)
 
         send_notification(message, title="Daily Weather Report", tags="sun_with_face")
+        db.record_event("daily_report", message)
         log.info("Daily report sent")
     except Exception:
         log.exception("Daily report failed")
@@ -119,6 +121,7 @@ def check_weather_alerts() -> None:
                     f"{condition} — up to {max_prob:.0f}% chance in the next few hours"
                 )
                 send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
+                db.record_event("rain_alert", message)
                 _last_rain_alert = now
                 log.info("Rain alert sent")
 
@@ -130,6 +133,7 @@ def check_weather_alerts() -> None:
                     f"Secure shade cloth, buckets, and lightweight gear."
                 )
                 send_notification(message, title="Wind Gust Alert", tags="wind_face", priority="high")
+                db.record_event("wind_alert", message)
                 _last_wind_alert = now
                 log.info("Wind alert sent")
 
@@ -138,6 +142,7 @@ def check_weather_alerts() -> None:
             if peak_heat >= HEAT_INDEX_ALERT_F:
                 message = f"Heat risk high. Feels-like temperature may reach {peak_heat:.0f}°F."
                 send_notification(message, title="Heat Risk Alert", tags="thermometer", priority="high")
+                db.record_event("heat_alert", message)
                 _last_heat_alert = now
                 log.info("Heat alert sent")
 
@@ -159,12 +164,23 @@ def send_quick_report() -> str:
         f"Precip: {c['precipitation']:.2f}\""
     )
     send_notification(message, title="Current Conditions", tags="partly_sunny")
+    db.record_event("quick_report", message)
     return message
 
 
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/history")
+def history():
+    event_type = request.args.get("type") or None
+    try:
+        limit = min(int(request.args.get("limit", 50)), 200)
+    except ValueError:
+        return jsonify({"status": "error", "message": "limit must be an integer"}), 400
+    return jsonify(db.get_events(event_type=event_type, limit=limit))
 
 
 @app.route("/report")
@@ -184,6 +200,8 @@ if __name__ == "__main__":
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5000"))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+
+    db.init_db()
 
     scheduler = BackgroundScheduler(timezone=EASTERN)
     scheduler.add_job(send_daily_report, "cron", hour=7, minute=0)

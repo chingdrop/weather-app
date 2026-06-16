@@ -358,3 +358,50 @@ class TestReportRoute:
         data = resp.get_json()
         assert data["status"] == "error"
         assert "API error" in data["message"]
+
+
+# ---------------------------------------------------------------------------
+# /history route
+# ---------------------------------------------------------------------------
+
+class TestHistoryRoute:
+    def test_empty_initially(self, client):
+        resp = client.get("/history")
+        assert resp.status_code == 200
+        assert resp.get_json() == []
+
+    def test_returns_recorded_events(self, client):
+        import db as db_module
+        db_module.record_event("daily_report", "morning report")
+        resp = client.get("/history")
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["type"] == "daily_report"
+        assert data[0]["message"] == "morning report"
+
+    def test_filter_by_type(self, client):
+        import db as db_module
+        db_module.record_event("daily_report", "report")
+        db_module.record_event("rain_alert", "alert")
+        resp = client.get("/history?type=rain_alert")
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]["type"] == "rain_alert"
+
+    def test_limit_param(self, client):
+        import db as db_module
+        for i in range(5):
+            db_module.record_event("quick_report", f"report {i}")
+        data = client.get("/history?limit=3").get_json()
+        assert len(data) == 3
+
+    def test_invalid_limit_returns_400(self, client):
+        resp = client.get("/history?limit=abc")
+        assert resp.status_code == 400
+
+    def test_limit_capped_at_200(self, client):
+        import db as db_module
+        for i in range(10):
+            db_module.record_event("quick_report", f"report {i}")
+        data = client.get("/history?limit=999").get_json()
+        assert len(data) == 10  # only 10 records exist, so all returned
