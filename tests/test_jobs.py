@@ -14,10 +14,22 @@ def reset_cooldowns():
     jobs._last_rain_alert = None
     jobs._last_wind_alert = None
     jobs._last_heat_alert = None
+    jobs._rain_cooldown_secs = 7200.0
+    jobs._last_rain_code = None
+    jobs._wind_cooldown_secs = 14400.0
+    jobs._last_wind_peak = 0.0
+    jobs._heat_cooldown_secs = 21600.0
+    jobs._last_heat_peak = 0.0
     yield
     jobs._last_rain_alert = None
     jobs._last_wind_alert = None
     jobs._last_heat_alert = None
+    jobs._rain_cooldown_secs = 7200.0
+    jobs._last_rain_code = None
+    jobs._wind_cooldown_secs = 14400.0
+    jobs._last_wind_peak = 0.0
+    jobs._heat_cooldown_secs = 21600.0
+    jobs._last_heat_peak = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +263,28 @@ class TestRainAlert:
             jobs.check_weather_alerts()
         assert jobs._last_rain_alert is not None
 
+    def test_rain_resends_when_code_changes_during_cooldown(self):
+        jobs._last_rain_alert = datetime.now(EASTERN)
+        jobs._last_rain_code = 61  # last alert was light rain
+        times = _future_times(1)
+        data = _alert_data(times, [80.0], [0.1], [95], [10.0], [82.0])  # now thunderstorm
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Rain Alert" in titles
+
+    def test_rain_cooldown_holds_when_code_same(self):
+        jobs._last_rain_alert = datetime.now(EASTERN)
+        jobs._last_rain_code = 61
+        times = _future_times(1)
+        data = _alert_data(times, [80.0], [0.1], [61], [10.0], [82.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Rain Alert" not in titles
+
     def test_rain_alert_includes_start_and_end_times(self):
         times = _future_times(3)
         data = _alert_data(times, [80.0, 75.0, 60.0], [0.1, 0.2, 0.1], [61, 63, 61], [10.0, 10.0, 10.0], [82.0, 82.0, 82.0])
@@ -301,6 +335,7 @@ class TestWindAlert:
 
     def test_wind_cooldown_suppresses_alert(self):
         jobs._last_wind_alert = datetime.now(EASTERN)
+        jobs._last_wind_peak = 38.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [38.0], [82.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -316,6 +351,28 @@ class TestWindAlert:
                 patch("jobs.send_notification"):
             jobs.check_weather_alerts()
         assert jobs._last_wind_alert is not None
+
+    def test_wind_resends_when_gusts_increase_during_cooldown(self):
+        jobs._last_wind_alert = datetime.now(EASTERN)
+        jobs._last_wind_peak = 32.0
+        times = _future_times(1)
+        data = _alert_data(times, [5.0], [0.0], [0], [40.0], [82.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Wind Gust Alert" in titles
+
+    def test_wind_cooldown_holds_when_gusts_same(self):
+        jobs._last_wind_alert = datetime.now(EASTERN)
+        jobs._last_wind_peak = 38.0
+        times = _future_times(1)
+        data = _alert_data(times, [5.0], [0.0], [0], [38.0], [82.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Wind Gust Alert" not in titles
 
     def test_wind_alert_includes_time_range(self):
         times = _future_times(3)
@@ -368,6 +425,7 @@ class TestHeatAlert:
 
     def test_heat_cooldown_suppresses_alert(self):
         jobs._last_heat_alert = datetime.now(EASTERN)
+        jobs._last_heat_peak = 105.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [105.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -383,6 +441,28 @@ class TestHeatAlert:
                 patch("jobs.send_notification"):
             jobs.check_weather_alerts()
         assert jobs._last_heat_alert is not None
+
+    def test_heat_resends_when_temperature_rises_during_cooldown(self):
+        jobs._last_heat_alert = datetime.now(EASTERN)
+        jobs._last_heat_peak = 102.0
+        times = _future_times(1)
+        data = _alert_data(times, [5.0], [0.0], [0], [10.0], [107.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Heat Risk Alert" in titles
+
+    def test_heat_cooldown_holds_when_temperature_same(self):
+        jobs._last_heat_alert = datetime.now(EASTERN)
+        jobs._last_heat_peak = 106.0
+        times = _future_times(1)
+        data = _alert_data(times, [5.0], [0.0], [0], [10.0], [106.0])
+        with patch("jobs.fetch_rain_check_weather", return_value=data), \
+                patch("jobs.send_notification") as mock_notify:
+            jobs.check_weather_alerts()
+        titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
+        assert "Heat Risk Alert" not in titles
 
     def test_heat_alert_includes_time_range(self):
         times = _future_times(3)

@@ -16,6 +16,12 @@ HEAT_INDEX_ALERT_F = float(os.environ.get("HEAT_INDEX_ALERT_F", "100"))
 _last_rain_alert: datetime | None = None
 _last_wind_alert: datetime | None = None
 _last_heat_alert: datetime | None = None
+_rain_cooldown_secs: float = 7200.0
+_last_rain_code: int | None = None
+_wind_cooldown_secs: float = 14400.0
+_last_wind_peak: float = 0.0
+_heat_cooldown_secs: float = 21600.0
+_last_heat_peak: float = 0.0
 
 
 def init_cooldowns() -> None:
@@ -87,13 +93,14 @@ def send_daily_report() -> None:
 
 def check_weather_alerts() -> None:
     global _last_rain_alert, _last_wind_alert, _last_heat_alert
+    global _rain_cooldown_secs, _last_rain_code, _wind_cooldown_secs, _last_wind_peak, _heat_cooldown_secs, _last_heat_peak
 
     now = datetime.now(EASTERN)
-    rain_due = not _last_rain_alert or (now - _last_rain_alert).total_seconds() >= 7200
-    wind_due = not _last_wind_alert or (now - _last_wind_alert).total_seconds() >= 14400
-    heat_due = not _last_heat_alert or (now - _last_heat_alert).total_seconds() >= 21600
+    rain_time_due = not _last_rain_alert or (now - _last_rain_alert).total_seconds() >= _rain_cooldown_secs
+    wind_time_due = not _last_wind_alert or (now - _last_wind_alert).total_seconds() >= _wind_cooldown_secs
+    heat_time_due = not _last_heat_alert or (now - _last_heat_alert).total_seconds() >= _heat_cooldown_secs
 
-    if not (rain_due or wind_due or heat_due):
+    if not (rain_time_due or wind_time_due or heat_time_due):
         return
 
     try:
@@ -103,6 +110,13 @@ def check_weather_alerts() -> None:
 
         def _fmt(iso: str) -> str:
             return datetime.fromisoformat(iso).strftime("%I %p").lstrip("0")
+
+        def _event_secs(rows: list, default: float) -> float:
+            return max(
+                (datetime.fromisoformat(rows[-1][0]).replace(tzinfo=EASTERN) - now).total_seconds()
+                if rows else default,
+                3600.0,
+            )
 
         all_future = [
             (
@@ -118,64 +132,74 @@ def check_weather_alerts() -> None:
         ]
         upcoming = all_future[:3]
 
-        if rain_due:
-            rain_hours = [
-                r for r in upcoming
-                if r[1] >= RAIN_PROB_ALERT_PERCENT or r[2] >= RAIN_AMOUNT_ALERT_IN or r[3] in RAIN_CODES
-            ]
-            if rain_hours:
-                all_rain = [
-                    r for r in all_future
-                    if r[1] >= RAIN_PROB_ALERT_PERCENT or r[2] >= RAIN_AMOUNT_ALERT_IN or r[3] in RAIN_CODES
-                ]
-                start_time = _fmt(all_rain[0][0])
-                end_time = _fmt(all_rain[-1][0])
-                max_prob = max(r[1] for r in rain_hours)
-                condition = WMO.get(rain_hours[0][3], "Rain")
-                hourly = "\n".join(
-                    f"{_fmt(r[0]):>6}  {WMO.get(r[3], 'Rain')}  {r[1]:.0f}%"
-                    for r in all_rain
-                )
-                message = (
-                    f"Rain likely {start_time}–{end_time}. Outdoor work window is closing.\n"
-                    f"{condition} — up to {max_prob:.0f}% chance\n\n"
-                    f"{hourly}"
-                )
-                send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
-                db.record_alert("rain", message)
-                _last_rain_alert = now
-                log.info("Rain alert sent")
+        # Rain — re-alert if cooldown expired OR the leading rain code changed
+        rain_hours = [
+            r for r in upcoming
+            if r[1] >= RAIN_PROB_ALERT_PERCENT or r[2] >= RAIN_AMOUNT_ALERT_IN or r[3] in RAIN_CODES
+        ]
+        all_rain = [
+            r for r in all_future
+            if r[1] >= RAIN_PROB_ALERT_PERCENT or r[2] >= RAIN_AMOUNT_ALERT_IN or r[3] in RAIN_CODES
+        ]
+        current_rain_code = all_rain[0][3] if all_rain else None
+        rain_code_changed = (
+            bool(rain_hours) and _last_rain_code is not None and current_rain_code != _last_rain_code
+        )
+        if rain_hours and (rain_time_due or rain_code_changed):
+            start_time = _fmt(all_rain[0][0])
+            end_time = _fmt(all_rain[-1][0])
+            max_prob = max(r[1] for r in rain_hours)
+            condition = WMO.get(rain_hours[0][3], "Rain")
+            hourly = "\n".join(
+                f"{_fmt(r[0]):>6}  {WMO.get(r[3], 'Rain')}  {r[1]:.0f}%"
+                for r in all_rain
+            )
+            message = (
+                f"Rain likely {start_time}–{end_time}. Outdoor work window is closing.\n"
+                f"{condition} — up to {max_prob:.0f}% chance\n\n"
+                f"{hourly}"
+            )
+            send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
+            db.record_alert("rain", message)
+            _rain_cooldown_secs = _event_secs(all_rain, 7200.0)
+            _last_rain_code = current_rain_code
+            _last_rain_alert = now
+            log.info("Rain alert sent")
 
-        if wind_due:
-            peak_gusts = max(c["wind_gusts_10m"], max((r[4] for r in upcoming), default=0))
-            if peak_gusts >= WIND_GUST_ALERT_MPH:
-                wind_hours = [r for r in all_future if r[4] >= WIND_GUST_ALERT_MPH]
-                time_range = f" from {_fmt(wind_hours[0][0])} to {_fmt(wind_hours[-1][0])}" if wind_hours else ""
-                hourly = "\n".join(f"{_fmt(r[0]):>6}  {r[4]:.0f} mph" for r in wind_hours)
-                message = (
-                    f"Wind gusts up to {peak_gusts:.0f} mph{time_range}. "
-                    f"Secure shade cloth, buckets, and lightweight gear."
-                    + (f"\n\n{hourly}" if hourly else "")
-                )
-                send_notification(message, title="Wind Gust Alert", tags="wind_face", priority="high")
-                db.record_alert("wind", message)
-                _last_wind_alert = now
-                log.info("Wind alert sent")
+        # Wind — re-alert if cooldown expired OR gusts increased
+        peak_gusts = max(c["wind_gusts_10m"], max((r[4] for r in upcoming), default=0))
+        wind_hours = [r for r in all_future if r[4] >= WIND_GUST_ALERT_MPH]
+        if peak_gusts >= WIND_GUST_ALERT_MPH and (wind_time_due or peak_gusts > _last_wind_peak):
+            time_range = f" from {_fmt(wind_hours[0][0])} to {_fmt(wind_hours[-1][0])}" if wind_hours else ""
+            hourly = "\n".join(f"{_fmt(r[0]):>6}  {r[4]:.0f} mph" for r in wind_hours)
+            message = (
+                f"Wind gusts up to {peak_gusts:.0f} mph{time_range}. "
+                f"Secure shade cloth, buckets, and lightweight gear."
+                + (f"\n\n{hourly}" if hourly else "")
+            )
+            send_notification(message, title="Wind Gust Alert", tags="wind_face", priority="high")
+            db.record_alert("wind", message)
+            _wind_cooldown_secs = _event_secs(wind_hours, 14400.0)
+            _last_wind_peak = peak_gusts
+            _last_wind_alert = now
+            log.info("Wind alert sent")
 
-        if heat_due:
-            peak_heat = max(c["apparent_temperature"], max((r[5] for r in upcoming), default=0))
-            if peak_heat >= HEAT_INDEX_ALERT_F:
-                heat_hours = [r for r in all_future if r[5] >= HEAT_INDEX_ALERT_F]
-                time_range = f" from {_fmt(heat_hours[0][0])} to {_fmt(heat_hours[-1][0])}" if heat_hours else ""
-                hourly = "\n".join(f"{_fmt(r[0]):>6}  Feels like {r[5]:.0f}°F" for r in heat_hours)
-                message = (
-                    f"Heat risk high{time_range}. Feels-like temperature may reach {peak_heat:.0f}°F."
-                    + (f"\n\n{hourly}" if hourly else "")
-                )
-                send_notification(message, title="Heat Risk Alert", tags="thermometer", priority="high")
-                db.record_alert("heat", message)
-                _last_heat_alert = now
-                log.info("Heat alert sent")
+        # Heat — re-alert if cooldown expired OR feels-like rose
+        peak_heat = max(c["apparent_temperature"], max((r[5] for r in upcoming), default=0))
+        heat_hours = [r for r in all_future if r[5] >= HEAT_INDEX_ALERT_F]
+        if peak_heat >= HEAT_INDEX_ALERT_F and (heat_time_due or peak_heat > _last_heat_peak):
+            time_range = f" from {_fmt(heat_hours[0][0])} to {_fmt(heat_hours[-1][0])}" if heat_hours else ""
+            hourly = "\n".join(f"{_fmt(r[0]):>6}  Feels like {r[5]:.0f}°F" for r in heat_hours)
+            message = (
+                f"Heat risk high{time_range}. Feels-like temperature may reach {peak_heat:.0f}°F."
+                + (f"\n\n{hourly}" if hourly else "")
+            )
+            send_notification(message, title="Heat Risk Alert", tags="thermometer", priority="high")
+            db.record_alert("heat", message)
+            _heat_cooldown_secs = _event_secs(heat_hours, 21600.0)
+            _last_heat_peak = peak_heat
+            _last_heat_alert = now
+            log.info("Heat alert sent")
 
     except Exception:
         log.exception("Weather alert check failed")
