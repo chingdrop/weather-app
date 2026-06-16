@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import db
@@ -15,15 +16,83 @@ HEAT_INDEX_ALERT_F = float(os.environ.get("HEAT_INDEX_ALERT_F", "100"))
 DB_RETAIN_DAYS = int(os.environ.get("DB_RETAIN_DAYS", "30"))
 API_FAILURE_NOTIFY_AFTER = int(os.environ.get("API_FAILURE_NOTIFY_AFTER", "3"))
 
-_last_rain_alert: datetime | None = None
-_last_wind_alert: datetime | None = None
-_last_heat_alert: datetime | None = None
-_rain_cooldown_secs: float = 7200.0
-_last_rain_code: int | None = None
-_wind_cooldown_secs: float = 14400.0
-_last_wind_peak: float = 0.0
-_heat_cooldown_secs: float = 21600.0
-_last_heat_peak: float = 0.0
+
+@dataclass
+class AlertConfig:
+    """Shared config and runtime state for all alert types."""
+    name: str
+    title: str
+    tags: str
+    default_cooldown_secs: float
+    last_alert: datetime | None = field(default=None)
+    cooldown_secs: float = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.cooldown_secs = self.default_cooldown_secs
+
+
+@dataclass
+class RainAlertConfig(AlertConfig):
+    last_code: int | None = field(default=None)
+
+
+@dataclass
+class ThresholdAlertConfig(AlertConfig):
+    """Config and runtime state for a single numeric-threshold weather alert.
+
+    Monitors one value from the hourly tuple:
+      (time, precip_prob, rain, weather_code, wind_gusts, apparent_temp)
+
+    Set exceeds=False for cold alerts (e.g. frost) where lower values are worse.
+    Adding a new alert type means adding one instance to _THRESHOLD_ALERTS below.
+    """
+    threshold: float = 0.0
+    value_index: int = 0              # index into the hourly tuple
+    current_key: str = ""             # key in data["current"] for the live reading
+    summary_template: str = ""        # .format(peak=..., time_range=...)
+    hourly_prefix: str = ""           # e.g. "Feels like " for heat/frost
+    hourly_unit: str = ""             # e.g. " mph", "°F"
+    exceeds: bool = True              # True: alert when value > threshold; False: when value < threshold
+    last_peak: float | None = field(default=None)
+
+
+_rain = RainAlertConfig(
+    name="rain",
+    title="Rain Alert",
+    tags="rain_cloud",
+    default_cooldown_secs=7200.0,
+)
+
+_wind_alert = ThresholdAlertConfig(
+    name="wind",
+    title="Wind Gust Alert",
+    tags="wind_face",
+    threshold=WIND_GUST_ALERT_MPH,
+    value_index=4,
+    current_key="wind_gusts_10m",
+    default_cooldown_secs=14400.0,
+    summary_template="Wind gusts up to {peak:.0f} mph{time_range}. Secure shade cloth, buckets, and lightweight gear.",
+    hourly_unit=" mph",
+)
+
+_heat_alert = ThresholdAlertConfig(
+    name="heat",
+    title="Heat Risk Alert",
+    tags="thermometer",
+    threshold=HEAT_INDEX_ALERT_F,
+    value_index=5,
+    current_key="apparent_temperature",
+    default_cooldown_secs=21600.0,
+    summary_template="Heat risk high{time_range}. Feels-like temperature may reach {peak:.0f}°F.",
+    hourly_prefix="Feels like ",
+    hourly_unit="°F",
+)
+
+# Add new threshold-based alert types here. Rain is handled separately in check_weather_alerts
+# because it uses multiple trigger conditions (probability, amount, WMO code) and tracks code changes.
+_THRESHOLD_ALERTS: list[ThresholdAlertConfig] = [_wind_alert, _heat_alert]
+_ALL_ALERTS: list[AlertConfig] = [_rain, *_THRESHOLD_ALERTS]
+
 _api_failure_count: int = 0
 _failure_notified: bool = False
 
@@ -52,10 +121,8 @@ def _on_api_failure(context: str) -> None:
 
 
 def init_cooldowns() -> None:
-    global _last_rain_alert, _last_wind_alert, _last_heat_alert
-    _last_rain_alert = db.get_last_alert_time("rain")
-    _last_wind_alert = db.get_last_alert_time("wind")
-    _last_heat_alert = db.get_last_alert_time("heat")
+    for alert in _ALL_ALERTS:
+        alert.last_alert = db.get_last_alert_time(alert.name)
 
 
 def send_daily_report() -> None:
@@ -120,15 +187,12 @@ def send_daily_report() -> None:
 
 
 def check_weather_alerts() -> None:
-    global _last_rain_alert, _last_wind_alert, _last_heat_alert
-    global _rain_cooldown_secs, _last_rain_code, _wind_cooldown_secs, _last_wind_peak, _heat_cooldown_secs, _last_heat_peak
-
     now = datetime.now(EASTERN)
-    rain_time_due = not _last_rain_alert or (now - _last_rain_alert).total_seconds() >= _rain_cooldown_secs
-    wind_time_due = not _last_wind_alert or (now - _last_wind_alert).total_seconds() >= _wind_cooldown_secs
-    heat_time_due = not _last_heat_alert or (now - _last_heat_alert).total_seconds() >= _heat_cooldown_secs
 
-    if not (rain_time_due or wind_time_due or heat_time_due):
+    def _time_due(alert: AlertConfig) -> bool:
+        return not alert.last_alert or (now - alert.last_alert).total_seconds() >= alert.cooldown_secs
+
+    if not any(_time_due(a) for a in _ALL_ALERTS):
         return
 
     try:
@@ -171,9 +235,9 @@ def check_weather_alerts() -> None:
         ]
         current_rain_code = all_rain[0][3] if all_rain else None
         rain_code_changed = (
-            bool(rain_hours) and _last_rain_code is not None and current_rain_code != _last_rain_code
+                bool(rain_hours) and _rain.last_code is not None and current_rain_code != _rain.last_code
         )
-        if rain_hours and (rain_time_due or rain_code_changed):
+        if rain_hours and (_time_due(_rain) or rain_code_changed):
             start_time = _fmt(all_rain[0][0])
             end_time = _fmt(all_rain[-1][0])
             max_prob = max(r[1] for r in rain_hours)
@@ -189,45 +253,43 @@ def check_weather_alerts() -> None:
             )
             send_notification(message, title="Rain Alert", tags="rain_cloud", priority="high")
             db.record_alert("rain", message)
-            _rain_cooldown_secs = _event_secs(all_rain, 7200.0)
-            _last_rain_code = current_rain_code
-            _last_rain_alert = now
+            _rain.cooldown_secs = _event_secs(all_rain, 7200.0)
+            _rain.last_code = current_rain_code
+            _rain.last_alert = now
             log.info("Rain alert sent")
 
-        # Wind — re-alert if cooldown expired OR gusts increased
-        peak_gusts = max(c["wind_gusts_10m"], max((r[4] for r in upcoming), default=0))
-        wind_hours = [r for r in all_future if r[4] >= WIND_GUST_ALERT_MPH]
-        if peak_gusts >= WIND_GUST_ALERT_MPH and (wind_time_due or peak_gusts > _last_wind_peak):
-            time_range = f" from {_fmt(wind_hours[0][0])} to {_fmt(wind_hours[-1][0])}" if wind_hours else ""
-            hourly = "\n".join(f"{_fmt(r[0]):>6}  {r[4]:.0f} mph" for r in wind_hours)
-            message = (
-                f"Wind gusts up to {peak_gusts:.0f} mph{time_range}. "
-                f"Secure shade cloth, buckets, and lightweight gear."
-                + (f"\n\n{hourly}" if hourly else "")
-            )
-            send_notification(message, title="Wind Gust Alert", tags="wind_face", priority="high")
-            db.record_alert("wind", message)
-            _wind_cooldown_secs = _event_secs(wind_hours, 14400.0)
-            _last_wind_peak = peak_gusts
-            _last_wind_alert = now
-            log.info("Wind alert sent")
+        # Threshold alerts (wind, heat, etc.) — re-alert if cooldown expired OR conditions worsened
+        for alert in _THRESHOLD_ALERTS:
+            current_val = c[alert.current_key]
+            hourly_vals = [r[alert.value_index] for r in upcoming]
+            if alert.exceeds:
+                peak = max(current_val, max(hourly_vals, default=0))
+                triggered = peak >= alert.threshold
+                worsened = alert.last_peak is not None and peak > alert.last_peak
+                qualifying = [r for r in all_future if r[alert.value_index] >= alert.threshold]
+            else:
+                peak = min(current_val, min(hourly_vals, default=float("inf")))
+                triggered = peak <= alert.threshold
+                worsened = alert.last_peak is not None and peak < alert.last_peak
+                qualifying = [r for r in all_future if r[alert.value_index] <= alert.threshold]
 
-        # Heat — re-alert if cooldown expired OR feels-like rose
-        peak_heat = max(c["apparent_temperature"], max((r[5] for r in upcoming), default=0))
-        heat_hours = [r for r in all_future if r[5] >= HEAT_INDEX_ALERT_F]
-        if peak_heat >= HEAT_INDEX_ALERT_F and (heat_time_due or peak_heat > _last_heat_peak):
-            time_range = f" from {_fmt(heat_hours[0][0])} to {_fmt(heat_hours[-1][0])}" if heat_hours else ""
-            hourly = "\n".join(f"{_fmt(r[0]):>6}  Feels like {r[5]:.0f}°F" for r in heat_hours)
-            message = (
-                f"Heat risk high{time_range}. Feels-like temperature may reach {peak_heat:.0f}°F."
-                + (f"\n\n{hourly}" if hourly else "")
-            )
-            send_notification(message, title="Heat Risk Alert", tags="thermometer", priority="high")
-            db.record_alert("heat", message)
-            _heat_cooldown_secs = _event_secs(heat_hours, 21600.0)
-            _last_heat_peak = peak_heat
-            _last_heat_alert = now
-            log.info("Heat alert sent")
+            time_due = not alert.last_alert or (now - alert.last_alert).total_seconds() >= alert.cooldown_secs
+
+            if triggered and (time_due or worsened):
+                time_range = f" from {_fmt(qualifying[0][0])} to {_fmt(qualifying[-1][0])}" if qualifying else ""
+                hourly = "\n".join(
+                    f"{_fmt(r[0]):>6}  {alert.hourly_prefix}{r[alert.value_index]:.0f}{alert.hourly_unit}"
+                    for r in qualifying
+                )
+                message = alert.summary_template.format(peak=peak, time_range=time_range)
+                if hourly:
+                    message += f"\n\n{hourly}"
+                send_notification(message, title=alert.title, tags=alert.tags, priority="high")
+                db.record_alert(alert.name, message)
+                alert.cooldown_secs = _event_secs(qualifying, alert.default_cooldown_secs)
+                alert.last_peak = peak
+                alert.last_alert = now
+                log.info("%s sent", alert.title)
 
         _on_api_success()
     except Exception:

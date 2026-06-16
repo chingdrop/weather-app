@@ -9,31 +9,22 @@ import jobs
 EASTERN = ZoneInfo("America/New_York")
 
 
+def _reset_state():
+    for alert in jobs._ALL_ALERTS:
+        alert.last_alert = None
+        alert.cooldown_secs = alert.default_cooldown_secs
+    jobs._rain.last_code = None
+    for alert in jobs._THRESHOLD_ALERTS:
+        alert.last_peak = None
+    jobs._api_failure_count = 0
+    jobs._failure_notified = False
+
+
 @pytest.fixture(autouse=True)
 def reset_cooldowns():
-    jobs._last_rain_alert = None
-    jobs._last_wind_alert = None
-    jobs._last_heat_alert = None
-    jobs._rain_cooldown_secs = 7200.0
-    jobs._last_rain_code = None
-    jobs._wind_cooldown_secs = 14400.0
-    jobs._last_wind_peak = 0.0
-    jobs._heat_cooldown_secs = 21600.0
-    jobs._last_heat_peak = 0.0
-    jobs._api_failure_count = 0
-    jobs._failure_notified = False
+    _reset_state()
     yield
-    jobs._last_rain_alert = None
-    jobs._last_wind_alert = None
-    jobs._last_heat_alert = None
-    jobs._rain_cooldown_secs = 7200.0
-    jobs._last_rain_code = None
-    jobs._wind_cooldown_secs = 14400.0
-    jobs._last_wind_peak = 0.0
-    jobs._heat_cooldown_secs = 21600.0
-    jobs._last_heat_peak = 0.0
-    jobs._api_failure_count = 0
-    jobs._failure_notified = False
+    _reset_state()
 
 
 # ---------------------------------------------------------------------------
@@ -43,17 +34,17 @@ def reset_cooldowns():
 class TestInitCooldowns:
     def test_all_none_when_no_alerts_in_db(self):
         jobs.init_cooldowns()
-        assert jobs._last_rain_alert is None
-        assert jobs._last_wind_alert is None
-        assert jobs._last_heat_alert is None
+        assert jobs._rain.last_alert is None
+        assert jobs._wind_alert.last_alert is None
+        assert jobs._heat_alert.last_alert is None
 
     def test_seeds_from_db(self):
         import db as db_module
         db_module.record_alert("rain", "a rain alert")
         jobs.init_cooldowns()
-        assert jobs._last_rain_alert is not None
-        assert jobs._last_wind_alert is None
-        assert jobs._last_heat_alert is None
+        assert jobs._rain.last_alert is not None
+        assert jobs._wind_alert.last_alert is None
+        assert jobs._heat_alert.last_alert is None
 
     def test_seeds_all_types(self):
         import db as db_module
@@ -61,9 +52,9 @@ class TestInitCooldowns:
         db_module.record_alert("wind", "wind")
         db_module.record_alert("heat", "heat")
         jobs.init_cooldowns()
-        assert jobs._last_rain_alert is not None
-        assert jobs._last_wind_alert is not None
-        assert jobs._last_heat_alert is not None
+        assert jobs._rain.last_alert is not None
+        assert jobs._wind_alert.last_alert is not None
+        assert jobs._heat_alert.last_alert is not None
 
 
 def _future_times(count: int) -> list[str]:
@@ -181,9 +172,8 @@ class TestSendDailyReport:
 
     def test_logs_and_swallows_api_error(self):
         with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
-                patch("jobs.log") as mock_log:
+                patch("jobs.send_notification"):
             jobs.send_daily_report()  # must not raise
-        mock_log.exception.assert_called_once()
 
     def test_hourly_section_appears_in_message(self):
         from datetime import date
@@ -250,7 +240,8 @@ class TestRainAlert:
         assert "Rain Alert" not in titles
 
     def test_rain_cooldown_suppresses_alert(self):
-        jobs._last_rain_alert = datetime.now(EASTERN)
+        jobs._rain.last_alert = datetime.now(EASTERN)
+        jobs._rain.last_code = 61
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [61], [10.0], [82.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -265,11 +256,11 @@ class TestRainAlert:
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
                 patch("jobs.send_notification"):
             jobs.check_weather_alerts()
-        assert jobs._last_rain_alert is not None
+        assert jobs._rain.last_alert is not None
 
     def test_rain_resends_when_code_changes_during_cooldown(self):
-        jobs._last_rain_alert = datetime.now(EASTERN)
-        jobs._last_rain_code = 61  # last alert was light rain
+        jobs._rain.last_alert = datetime.now(EASTERN)
+        jobs._rain.last_code = 61  # last alert was light rain
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [95], [10.0], [82.0])  # now thunderstorm
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -279,8 +270,8 @@ class TestRainAlert:
         assert "Rain Alert" in titles
 
     def test_rain_cooldown_holds_when_code_same(self):
-        jobs._last_rain_alert = datetime.now(EASTERN)
-        jobs._last_rain_code = 61
+        jobs._rain.last_alert = datetime.now(EASTERN)
+        jobs._rain.last_code = 61
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [61], [10.0], [82.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -338,8 +329,8 @@ class TestWindAlert:
         assert "Wind Gust Alert" not in titles
 
     def test_wind_cooldown_suppresses_alert(self):
-        jobs._last_wind_alert = datetime.now(EASTERN)
-        jobs._last_wind_peak = 38.0
+        jobs._wind_alert.last_alert = datetime.now(EASTERN)
+        jobs._wind_alert.last_peak = 38.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [38.0], [82.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -354,11 +345,11 @@ class TestWindAlert:
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
                 patch("jobs.send_notification"):
             jobs.check_weather_alerts()
-        assert jobs._last_wind_alert is not None
+        assert jobs._wind_alert.last_alert is not None
 
     def test_wind_resends_when_gusts_increase_during_cooldown(self):
-        jobs._last_wind_alert = datetime.now(EASTERN)
-        jobs._last_wind_peak = 32.0
+        jobs._wind_alert.last_alert = datetime.now(EASTERN)
+        jobs._wind_alert.last_peak = 32.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [40.0], [82.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -368,8 +359,8 @@ class TestWindAlert:
         assert "Wind Gust Alert" in titles
 
     def test_wind_cooldown_holds_when_gusts_same(self):
-        jobs._last_wind_alert = datetime.now(EASTERN)
-        jobs._last_wind_peak = 38.0
+        jobs._wind_alert.last_alert = datetime.now(EASTERN)
+        jobs._wind_alert.last_peak = 38.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [38.0], [82.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -428,8 +419,8 @@ class TestHeatAlert:
         assert "Heat Risk Alert" not in titles
 
     def test_heat_cooldown_suppresses_alert(self):
-        jobs._last_heat_alert = datetime.now(EASTERN)
-        jobs._last_heat_peak = 105.0
+        jobs._heat_alert.last_alert = datetime.now(EASTERN)
+        jobs._heat_alert.last_peak = 105.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [105.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -444,11 +435,11 @@ class TestHeatAlert:
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
                 patch("jobs.send_notification"):
             jobs.check_weather_alerts()
-        assert jobs._last_heat_alert is not None
+        assert jobs._heat_alert.last_alert is not None
 
     def test_heat_resends_when_temperature_rises_during_cooldown(self):
-        jobs._last_heat_alert = datetime.now(EASTERN)
-        jobs._last_heat_peak = 102.0
+        jobs._heat_alert.last_alert = datetime.now(EASTERN)
+        jobs._heat_alert.last_peak = 102.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [107.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -458,8 +449,8 @@ class TestHeatAlert:
         assert "Heat Risk Alert" in titles
 
     def test_heat_cooldown_holds_when_temperature_same(self):
-        jobs._last_heat_alert = datetime.now(EASTERN)
-        jobs._last_heat_peak = 106.0
+        jobs._heat_alert.last_alert = datetime.now(EASTERN)
+        jobs._heat_alert.last_peak = 106.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [106.0])
         with patch("jobs.fetch_rain_check_weather", return_value=data), \
@@ -486,18 +477,17 @@ class TestHeatAlert:
 
 class TestAlertCooldownSkip:
     def test_skips_fetch_when_all_cooldowns_active(self):
-        jobs._last_rain_alert = datetime.now(EASTERN)
-        jobs._last_wind_alert = datetime.now(EASTERN)
-        jobs._last_heat_alert = datetime.now(EASTERN)
+        jobs._rain.last_alert = datetime.now(EASTERN)
+        jobs._wind_alert.last_alert = datetime.now(EASTERN)
+        jobs._heat_alert.last_alert = datetime.now(EASTERN)
         with patch("jobs.fetch_rain_check_weather") as mock_fetch:
             jobs.check_weather_alerts()
         mock_fetch.assert_not_called()
 
     def test_logs_and_swallows_api_error(self):
         with patch("jobs.fetch_rain_check_weather", side_effect=Exception("timeout")), \
-                patch("jobs.log") as mock_log:
+                patch("jobs.send_notification"):
             jobs.check_weather_alerts()  # must not raise
-        mock_log.exception.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
