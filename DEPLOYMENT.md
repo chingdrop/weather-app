@@ -14,17 +14,16 @@ git clone <your-repo-url> weather-app && cd weather-app
 cp .env.example .env
 ```
 
-Edit `.env` — at minimum set `NTFY_TOPIC`, `LAT`, and `LON`. See `.env.example` for the full list of options including alert thresholds and scheduler settings.
+Edit `.env` — at minimum review `NTFY_SELF_HOSTED` and set `SECRET_KEY` to a long random string. All location and
+threshold config is handled through the web UI after first boot.
 
-`NTFY_TOPIC` is required. The app will refuse to start without it.
+Key variables:
 
-Key optional variables (all have defaults):
-
-| Variable             | Description                                     | Default |
-|----------------------|-------------------------------------------------|---------|
-| `DAILY_REPORT_HOUR`  | Hour to send the daily report (24-hour format)  | `7`     |
-| `ALERT_INTERVAL_MIN` | How often to check for weather alerts (minutes) | `15`    |
-| `FLASK_DEBUG`        | Set to `1` for debug logging (dev only)         | `0`     |
+| Variable           | Description                                             | Default |
+|--------------------|---------------------------------------------------------|---------|
+| `NTFY_SELF_HOSTED` | Set to `1` to use the bundled self-hosted ntfy container | `0`    |
+| `SECRET_KEY`       | Flask session signing key — set a stable value          | random  |
+| `FLASK_DEBUG`      | Set to `1` for debug logging (dev only)                 | `0`     |
 
 ### Development
 
@@ -42,6 +41,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 Adds `restart: unless-stopped`, healthchecks, and safe defaults (`FLASK_DEBUG=0`, `HOST=0.0.0.0`).
 
+## First-time configuration
+
+Once the container is running, open `http://<host>:5000/setup` to add your first location. The setup wizard collects:
+
+- Location name, latitude, longitude, and timezone
+- ntfy topic to publish notifications to
+- Optional per-location alert thresholds (leave blank to use global defaults)
+
+Additional locations and global settings (scheduler timing, alert thresholds, database retention) are managed at
+`/config/locations` and `/config/settings`. Changes to locations take effect immediately; scheduler changes require
+a restart (use the **Save & Restart** button on the settings page).
+
 ## API endpoints
 
 ```bash
@@ -51,25 +62,31 @@ curl http://127.0.0.1:5000/report
 # Health check
 curl http://127.0.0.1:5000/health
 
-# View recent reports (optional: ?type=daily|quick&limit=N)
+# View recent reports (optional: ?type=daily|evening|quick&location=name&limit=N)
 curl http://127.0.0.1:5000/history/reports
 
-# View recent alerts (optional: ?type=rain|wind|heat&limit=N)
+# View recent alerts (optional: ?type=rain|wind|heat|frost&location=name&limit=N)
 curl http://127.0.0.1:5000/history/alerts
+
+# Trigger a graceful restart
+curl -X POST http://127.0.0.1:5000/restart
 ```
 
 ## Notes
 
-**Startup catch-up.** If the container restarts after the scheduled daily report time and no report has been recorded for today, one is sent automatically on startup.
+**Startup catch-up.** If the container restarts after the scheduled daily report time and no report has been recorded
+for today, one is sent automatically on startup.
 
-**Logging.** In production (`FLASK_DEBUG=0`) the log level is `WARNING` — you will see the startup banner, any alerts/reports sent, and errors. Set `FLASK_DEBUG=1` in dev to get `DEBUG`-level output including APScheduler internals.
+**Logging.** In production (`FLASK_DEBUG=0`) the log level is `WARNING` — you will see the startup banner, any
+alerts/reports sent, and errors. Set `FLASK_DEBUG=1` in dev to get `DEBUG`-level output including APScheduler
+internals.
 
 **One instance only.** The app embeds APScheduler inside the Flask process. Gunicorn is intentionally configured with
 `--workers 1` — multiple workers would cause every scheduled job to fire once per worker.
 
-**Network access.** The port is bound to `127.0.0.1:5000` by default, so it is only reachable from the host machine. To
-expose it on your LAN or over a VPN, either change the port binding in `docker-compose.yml` to `"5000:5000"` or put a
-reverse proxy (Caddy, nginx) in front of it.
+**Network access.** The port is bound to `127.0.0.1:5000` by default, so it is only reachable from the host machine.
+To expose it on your LAN or over a VPN, either change the port binding in `docker-compose.yml` to `"5000:5000"` or
+put a reverse proxy (Caddy, nginx) in front of it.
 
 **Database persistence.** The SQLite database is stored in `./data/weather.db` on the host, mounted into the container
 at `/data`. This directory is excluded from git. Back it up alongside `.env` when moving to a new host.
@@ -86,10 +103,12 @@ The app publishes to [ntfy](https://ntfy.sh), an open-source push notification s
 ### Option A — ntfy.sh (hosted, no setup required)
 
 1. Choose a long, unguessable topic name (e.g. `weather-abc123xyz`).
-2. Set `NTFY_SELF_HOSTED=0` and `NTFY_TOPIC=<your-topic>` in `.env`.
+2. Set `NTFY_SELF_HOSTED=0` in `.env`.
 3. Subscribe to that topic in the [ntfy app](https://ntfy.sh) or web UI.
+4. Enter the topic name when prompted during the `/setup` wizard.
 
-Notifications are published to `https://ntfy.sh/<topic>` — anyone who knows the topic name can subscribe, so keep it private.
+Notifications are published to `https://ntfy.sh/<topic>` — anyone who knows the topic name can subscribe, so keep
+it private.
 
 ### Option B — self-hosted ntfy
 
