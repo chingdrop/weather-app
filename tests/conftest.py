@@ -25,6 +25,7 @@ def temp_db(tmp_path):
     yield
     db_module.DB_PATH = original_path
     db_module._engine = original_engine
+    startup_module.monitors.clear()
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def location_id():
         name=TEST_CFG.name,
         lat=TEST_CFG.lat,
         lon=TEST_CFG.lon,
-        tz_name=TEST_CFG.timezone,
+        timezone=TEST_CFG.timezone,
         ntfy_topic=TEST_CFG.ntfy_topic,
     )
 

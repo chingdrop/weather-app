@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from sqlalchemy import DateTime, Engine, ForeignKey, Integer, String, Text, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
@@ -91,7 +91,7 @@ def upsert_location(
         name: str,
         lat: float,
         lon: float,
-        tz_name: str,
+        timezone: str,
         ntfy_topic: str,
         rain_prob_alert_percent: float | None = None,
         rain_amount_alert_in: float | None = None,
@@ -104,20 +104,20 @@ def upsert_location(
         loc = session.query(Location).filter_by(name=name).first()
         if loc is None:
             loc = Location(
-                name=name, lat=lat, lon=lon, timezone=tz_name, ntfy_topic=ntfy_topic,
+                name=name, lat=lat, lon=lon, timezone=timezone, ntfy_topic=ntfy_topic,
                 rain_prob_alert_percent=rain_prob_alert_percent,
                 rain_amount_alert_in=rain_amount_alert_in,
                 wind_gust_alert_mph=wind_gust_alert_mph,
                 heat_index_alert_f=heat_index_alert_f,
                 frost_temp_alert_f=frost_temp_alert_f,
                 uv_index_alert=uv_index_alert,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(dt_timezone.utc),
             )
             session.add(loc)
         else:
             loc.lat = lat
             loc.lon = lon
-            loc.timezone = tz_name
+            loc.timezone = timezone
             loc.ntfy_topic = ntfy_topic
             loc.rain_prob_alert_percent = rain_prob_alert_percent
             loc.rain_amount_alert_in = rain_amount_alert_in
@@ -133,14 +133,14 @@ def upsert_location(
 def record_report(location_id: int, report_type: str, message: str) -> None:
     with Session(_require_engine()) as session:
         session.add(
-            Report(location_id=location_id, type=report_type, message=message, created_at=datetime.now(timezone.utc)))
+            Report(location_id=location_id, type=report_type, message=message, created_at=datetime.now(dt_timezone.utc)))
         session.commit()
 
 
 def record_alert(location_id: int, alert_type: str, message: str) -> None:
     with Session(_require_engine()) as session:
         session.add(
-            Alert(location_id=location_id, type=alert_type, message=message, created_at=datetime.now(timezone.utc)))
+            Alert(location_id=location_id, type=alert_type, message=message, created_at=datetime.now(dt_timezone.utc)))
         session.commit()
 
 
@@ -175,7 +175,7 @@ def get_alerts(location_id: int | None = None, alert_type: str | None = None, li
 
 
 def prune_old_records(retain_days: int) -> tuple[int, int]:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=retain_days)
+    cutoff = datetime.now(dt_timezone.utc) - timedelta(days=retain_days)
     with Session(_require_engine()) as session:
         reports_deleted = session.query(Report).filter(Report.created_at < cutoff).delete()
         alerts_deleted = session.query(Alert).filter(Alert.created_at < cutoff).delete()
@@ -185,7 +185,7 @@ def prune_old_records(retain_days: int) -> tuple[int, int]:
 
 def _as_utc(dt: datetime) -> datetime:
     """SQLite strips timezone; re-attach UTC when reading back naive datetimes."""
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=dt_timezone.utc)
 
 
 def get_last_report_time(location_id: int, report_type: str) -> datetime | None:
