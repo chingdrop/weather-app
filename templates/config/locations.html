@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <div class="card-header">
+    <h1>Locations</h1>
+    <a href="/config/locations/new" class="btn btn-primary">+ Add Location</a>
+  </div>
+
+  {% if locations %}
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Coordinates</th>
+        <th>Timezone</th>
+        <th>NTFY Topic</th>
+        <th>Thresholds</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for loc in locations %}
+      <tr>
+        <td><strong>{{ loc.name }}</strong></td>
+        <td class="text-muted">{{ "%.4f"|format(loc.lat) }}, {{ "%.4f"|format(loc.lon) }}</td>
+        <td class="text-muted">{{ loc.timezone }}</td>
+        <td><span class="badge badge-blue">{{ loc.ntfy_topic }}</span></td>
+        <td class="text-muted" style="font-size:0.8rem">
+          {% if loc.rain_prob_alert_percent is not none %}Rain {{ loc.rain_prob_alert_percent|int }}% {% endif %}
+          {% if loc.wind_gust_alert_mph is not none %}Wind {{ loc.wind_gust_alert_mph|int }}mph {% endif %}
+          {% if loc.heat_index_alert_f is not none %}Heat {{ loc.heat_index_alert_f|int }}°F {% endif %}
+          {% if loc.frost_temp_alert_f is not none %}Frost {{ loc.frost_temp_alert_f|int }}°F {% endif %}
+          {% if loc.uv_index_alert is not none %}UV {{ loc.uv_index_alert }}{% endif %}
+          {% if loc.rain_prob_alert_percent is none and loc.wind_gust_alert_mph is none and loc.heat_index_alert_f is none %}
+            <em>using global defaults</em>
+          {% endif %}
+        </td>
+        <td>
+          <div class="btn-group">
+            <a href="/config/locations/{{ loc.name }}" class="btn btn-secondary btn-sm">Edit</a>
+            <form method="post" action="/config/locations/{{ loc.name }}/delete"
+                  onsubmit="return confirm('Delete {{ loc.name }}? This cannot be undone.')">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">No locations yet. <a href="/config/locations/new">Add one.</a></p>
+  {% endif %}
+</div>
+
+{% endblock %}

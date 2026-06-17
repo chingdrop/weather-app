@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+
+<form method="post">
+  <div class="card">
+    <h1>Settings</h1>
+    <p class="text-muted" style="margin-bottom:1.5rem">Scheduler changes require a restart to take effect. Use <strong>Save &amp; Restart</strong> to apply everything at once.</p>
+
+    <h2>Scheduler</h2>
+    <div class="form-row-3">
+      <div class="field">
+        <label for="daily_report_hour">Daily report hour (0–23)</label>
+        <input type="number" id="daily_report_hour" name="daily_report_hour" required min="0" max="23"
+               value="{{ settings.daily_report_hour }}">
+        <p class="hint">Hour in each location's local time</p>
+      </div>
+      <div class="field">
+        <label for="evening_report_hour">Evening report hour (0–23)</label>
+        <input type="number" id="evening_report_hour" name="evening_report_hour" required min="0" max="23"
+               value="{{ settings.evening_report_hour }}">
+      </div>
+      <div class="field">
+        <label for="alert_interval_min">Alert check interval (min)</label>
+        <input type="number" id="alert_interval_min" name="alert_interval_min" required min="1"
+               value="{{ settings.alert_interval_min }}">
+      </div>
+    </div>
+
+    <hr class="section-divider">
+    <h2>Database</h2>
+    <div class="form-row">
+      <div class="field">
+        <label for="db_retain_days">Retain records (days)</label>
+        <input type="number" id="db_retain_days" name="db_retain_days" required min="1"
+               value="{{ settings.db_retain_days }}">
+      </div>
+      <div class="field">
+        <label for="api_failure_notify_after">Notify after N API failures</label>
+        <input type="number" id="api_failure_notify_after" name="api_failure_notify_after" required min="1"
+               value="{{ settings.api_failure_notify_after }}">
+      </div>
+    </div>
+
+    <hr class="section-divider">
+    <h2>Global Alert Thresholds</h2>
+    <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">Used for any location that does not set its own override.</p>
+    <div class="form-row-3">
+      <div class="field">
+        <label for="rain_prob_alert_percent">Rain probability %</label>
+        <input type="number" id="rain_prob_alert_percent" name="rain_prob_alert_percent" required step="1" min="0" max="100"
+               value="{{ settings.rain_prob_alert_percent }}">
+      </div>
+      <div class="field">
+        <label for="rain_amount_alert_in">Rain amount (in)</label>
+        <input type="number" id="rain_amount_alert_in" name="rain_amount_alert_in" required step="0.01" min="0"
+               value="{{ settings.rain_amount_alert_in }}">
+      </div>
+      <div class="field">
+        <label for="wind_gust_alert_mph">Wind gust (mph)</label>
+        <input type="number" id="wind_gust_alert_mph" name="wind_gust_alert_mph" required step="1" min="0"
+               value="{{ settings.wind_gust_alert_mph }}">
+      </div>
+      <div class="field">
+        <label for="heat_index_alert_f">Heat index (°F)</label>
+        <input type="number" id="heat_index_alert_f" name="heat_index_alert_f" required step="1"
+               value="{{ settings.heat_index_alert_f }}">
+      </div>
+      <div class="field">
+        <label for="frost_temp_alert_f">Frost temp (°F)</label>
+        <input type="number" id="frost_temp_alert_f" name="frost_temp_alert_f" required step="1"
+               value="{{ settings.frost_temp_alert_f }}">
+      </div>
+      <div class="field">
+        <label for="uv_index_alert">UV index</label>
+        <input type="number" id="uv_index_alert" name="uv_index_alert" required step="1" min="0" max="11"
+               value="{{ settings.uv_index_alert }}">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <button type="submit" class="btn btn-warning" onclick="event.preventDefault(); submitAndRestart()">Save &amp; Restart</button>
+    </div>
+  </div>
+</form>
+
+<script>
+async function submitAndRestart() {
+  const form = document.querySelector('form');
+  const data = new FormData(form);
+  await fetch(form.action || window.location.href, { method: 'POST', body: data });
+  triggerRestart();
+}
+</script>
+
+{% endblock %}

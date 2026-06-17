@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <h1>{{ title }}</h1>
+
+  <form method="post">
+    <h2>Location</h2>
+
+    <div class="field">
+      <label for="name">Name</label>
+      {% if loc %}
+        <input type="text" id="name" name="name" value="{{ loc.name }}" readonly
+               style="background:#f9fafb;color:#6b7280;cursor:not-allowed">
+        <p class="hint">Name cannot be changed after creation.</p>
+      {% else %}
+        <input type="text" id="name" name="name" required placeholder="e.g. Home">
+      {% endif %}
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="lat">Latitude</label>
+        <input type="number" id="lat" name="lat" required step="0.0001"
+               value="{{ loc.lat if loc else '' }}" placeholder="27.3364">
+      </div>
+      <div class="field">
+        <label for="lon">Longitude</label>
+        <input type="number" id="lon" name="lon" required step="0.0001"
+               value="{{ loc.lon if loc else '' }}" placeholder="-82.5307">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="timezone">Timezone</label>
+        <input type="text" id="timezone" name="timezone" required
+               value="{{ loc.timezone if loc else '' }}" placeholder="America/New_York">
+        <p class="hint">IANA timezone name</p>
+      </div>
+      <div class="field">
+        <label for="ntfy_topic">NTFY Topic</label>
+        <input type="text" id="ntfy_topic" name="ntfy_topic" required
+               value="{{ loc.ntfy_topic if loc else '' }}" placeholder="my-weather-alerts">
+      </div>
+    </div>
+
+    <hr class="section-divider">
+    <h2>Alert Thresholds <span class="text-muted" style="font-weight:400;text-transform:none;letter-spacing:0">(leave blank to use global defaults)</span></h2>
+
+    <div class="form-row-3">
+      <div class="field">
+        <label for="rain_prob_alert_percent">Rain probability %</label>
+        <input type="number" id="rain_prob_alert_percent" name="rain_prob_alert_percent" step="1" min="0" max="100"
+               value="{{ loc.rain_prob_alert_percent if loc and loc.rain_prob_alert_percent is not none else '' }}"
+               placeholder="{{ settings.rain_prob_alert_percent }} (global)">
+      </div>
+      <div class="field">
+        <label for="rain_amount_alert_in">Rain amount (in)</label>
+        <input type="number" id="rain_amount_alert_in" name="rain_amount_alert_in" step="0.01" min="0"
+               value="{{ loc.rain_amount_alert_in if loc and loc.rain_amount_alert_in is not none else '' }}"
+               placeholder="{{ settings.rain_amount_alert_in }} (global)">
+      </div>
+      <div class="field">
+        <label for="wind_gust_alert_mph">Wind gust (mph)</label>
+        <input type="number" id="wind_gust_alert_mph" name="wind_gust_alert_mph" step="1" min="0"
+               value="{{ loc.wind_gust_alert_mph if loc and loc.wind_gust_alert_mph is not none else '' }}"
+               placeholder="{{ settings.wind_gust_alert_mph }} (global)">
+      </div>
+      <div class="field">
+        <label for="heat_index_alert_f">Heat index (°F)</label>
+        <input type="number" id="heat_index_alert_f" name="heat_index_alert_f" step="1"
+               value="{{ loc.heat_index_alert_f if loc and loc.heat_index_alert_f is not none else '' }}"
+               placeholder="{{ settings.heat_index_alert_f }} (global)">
+      </div>
+      <div class="field">
+        <label for="frost_temp_alert_f">Frost temp (°F)</label>
+        <input type="number" id="frost_temp_alert_f" name="frost_temp_alert_f" step="1"
+               value="{{ loc.frost_temp_alert_f if loc and loc.frost_temp_alert_f is not none else '' }}"
+               placeholder="{{ settings.frost_temp_alert_f }} (global)">
+      </div>
+      <div class="field">
+        <label for="uv_index_alert">UV index</label>
+        <input type="number" id="uv_index_alert" name="uv_index_alert" step="1" min="0" max="11"
+               value="{{ loc.uv_index_alert if loc and loc.uv_index_alert is not none else '' }}"
+               placeholder="{{ settings.uv_index_alert }} (global)">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a href="/config/locations" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
