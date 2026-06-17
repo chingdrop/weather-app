@@ -21,7 +21,8 @@ def _on_api_success(monitor: LocationMonitor) -> None:
 def _on_api_failure(monitor: LocationMonitor, context: str) -> None:
     monitor.api_failure_count += 1
     log.exception("%s failed for %s (consecutive failures: %d)", context, monitor.cfg.name, monitor.api_failure_count)
-    if monitor.api_failure_count >= API_FAILURE_NOTIFY_AFTER and not monitor.failure_notified:
+    threshold = int(db.get_setting("api_failure_notify_after") or API_FAILURE_NOTIFY_AFTER)
+    if monitor.api_failure_count >= threshold and not monitor.failure_notified:
         try:
             send_notification(
                 f"Weather API has failed {monitor.api_failure_count} times in a row. Check logs.",
@@ -224,8 +225,9 @@ def check_weather_alerts(monitor: LocationMonitor) -> None:
 
 def prune_database() -> None:
     try:
-        reports, alerts = db.prune_old_records(DB_RETAIN_DAYS)
-        log.info("Pruned %d reports and %d alerts older than %d days", reports, alerts, DB_RETAIN_DAYS)
+        days = int(db.get_setting("db_retain_days") or DB_RETAIN_DAYS)
+        reports, alerts = db.prune_old_records(days)
+        log.info("Pruned %d reports and %d alerts older than %d days", reports, alerts, days)
     except Exception:
         log.exception("Database pruning failed")
 

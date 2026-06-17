@@ -50,6 +50,13 @@ class Alert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class Setting(Base):
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(String(500))
+
+
 def _require_engine() -> Engine:
     if _engine is None:
         raise RuntimeError("db.init_db() has not been called")
@@ -196,3 +203,40 @@ def get_last_alert_time(location_id: int, alert_type: str) -> datetime | None:
             .first()
         )
         return row.created_at if row else None
+
+
+def get_locations() -> list[Location]:
+    with Session(_require_engine()) as session:
+        locs = session.query(Location).order_by(Location.name).all()
+        session.expunge_all()
+        return locs
+
+
+def get_location_by_name(name: str) -> Location | None:
+    with Session(_require_engine()) as session:
+        loc = session.query(Location).filter_by(name=name).first()
+        if loc:
+            session.expunge(loc)
+        return loc
+
+
+def delete_location(location_id: int) -> None:
+    with Session(_require_engine()) as session:
+        session.query(Location).filter_by(id=location_id).delete()
+        session.commit()
+
+
+def get_setting(key: str, default: str | None = None) -> str | None:
+    with Session(_require_engine()) as session:
+        row = session.query(Setting).filter_by(key=key).first()
+        return row.value if row else default
+
+
+def set_setting(key: str, value: str) -> None:
+    with Session(_require_engine()) as session:
+        row = session.query(Setting).filter_by(key=key).first()
+        if row is None:
+            session.add(Setting(key=key, value=value))
+        else:
+            row.value = value
+        session.commit()
