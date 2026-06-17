@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from adapter import RestAdapter, RestAdapterConfig
+from app.adapter import RestAdapter, RestAdapterConfig
 
 RAIN_CODES = {51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99}
 

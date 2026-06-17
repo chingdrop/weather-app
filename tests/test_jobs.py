@@ -4,9 +4,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-import db
-import jobs
-import monitor as monitor_module
+from app import db
+from app import jobs
+from app import monitor as monitor_module
 from conftest import TEST_CFG
 
 EASTERN = ZoneInfo("America/New_York")
@@ -114,8 +114,8 @@ class TestInitCooldowns:
 
 class TestSendQuickReport:
     def test_message_contains_conditions(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("app.jobs.send_notification"):
             result = jobs.send_quick_report(monitor)
         assert "Partly cloudy" in result
         assert "88°F" in result
@@ -125,8 +125,8 @@ class TestSendQuickReport:
         assert "gusts 18 mph" in result
 
     def test_sends_notification_with_correct_title(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_quick_report(monitor)
         assert mock_notify.call_args.kwargs["title"] == "Current Conditions"
         assert mock_notify.call_args.kwargs["topic"] == TEST_CFG.ntfy_topic
@@ -138,8 +138,8 @@ class TestSendQuickReport:
 
 class TestSendDailyReport:
     def test_message_contains_key_fields(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_daily_report(monitor)
         message = mock_notify.call_args[0][0]
         assert "88°F" in message
@@ -151,8 +151,8 @@ class TestSendDailyReport:
         assert "08:15 PM" in message
 
     def test_logs_and_swallows_api_error(self, monitor):
-        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("app.jobs.send_notification"):
             jobs.send_daily_report(monitor)  # must not raise
 
     def test_hourly_section_appears_in_message(self, monitor):
@@ -171,29 +171,29 @@ class TestSendDailyReport:
                 "weather_code": [2] * len(times),
             },
         }
-        with patch("jobs.fetch_report_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_daily_report(monitor)
         message = mock_notify.call_args[0][0]
         assert "Hourly:" in message
         assert "85°F" in message
 
     def test_no_hourly_section_when_no_data(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_daily_report(monitor)
         assert "Hourly:" not in mock_notify.call_args[0][0]
 
     def test_uv_tip_appears_when_index_at_threshold(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_daily_report(monitor)
         assert "sun protection" in mock_notify.call_args[0][0]
 
     def test_no_uv_tip_when_index_below_threshold(self, monitor):
         data = {**REPORT_DATA, "daily": {**REPORT_DATA["daily"], "uv_index_max": [3.0]}}
-        with patch("jobs.fetch_report_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_daily_report(monitor)
         assert "sun protection" not in mock_notify.call_args[0][0]
 
@@ -233,8 +233,8 @@ class TestSendEveningReport:
         }
 
     def test_message_contains_tomorrow_values(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=self._data()), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=self._data()), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_evening_report(monitor)
         message = mock_notify.call_args[0][0]
         assert "91°F" in message
@@ -242,20 +242,20 @@ class TestSendEveningReport:
         assert "25%" in message
 
     def test_sends_with_correct_title(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=self._data()), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=self._data()), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_evening_report(monitor)
         assert mock_notify.call_args.kwargs["title"] == "Evening Weather Briefing"
 
     def test_hourly_shows_tomorrow(self, monitor):
-        with patch("jobs.fetch_report_weather", return_value=self._data()), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", return_value=self._data()), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.send_evening_report(monitor)
         assert "Hourly:" in mock_notify.call_args[0][0]
 
     def test_swallows_api_error(self, monitor):
-        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("app.jobs.send_notification"):
             jobs.send_evening_report(monitor)  # must not raise
 
 
@@ -267,8 +267,8 @@ class TestRainAlert:
     def test_sends_alert_when_rain_expected(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [75.0, 80.0], [0.1, 0.2], [61, 63], [15.0, 18.0], [82.0, 83.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Rain Alert" in titles
@@ -276,8 +276,8 @@ class TestRainAlert:
     def test_rain_alert_is_high_priority(self, monitor):
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [61], [15.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         rain_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Rain Alert")
         assert rain_call.kwargs["priority"] == "high"
@@ -285,8 +285,8 @@ class TestRainAlert:
     def test_no_alert_when_no_rain(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [10.0, 5.0], [0.0, 0.0], [0, 1], [10.0, 12.0], [82.0, 83.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Rain Alert" not in titles
@@ -296,8 +296,8 @@ class TestRainAlert:
         monitor.rain.last_code = 61
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [61], [10.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Rain Alert" not in titles
@@ -305,8 +305,8 @@ class TestRainAlert:
     def test_sets_rain_cooldown_after_alert(self, monitor):
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [61], [10.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification"):
             jobs.check_weather_alerts(monitor)
         assert monitor.rain.last_alert is not None
 
@@ -315,8 +315,8 @@ class TestRainAlert:
         monitor.rain.last_code = 61
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [95], [10.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Rain Alert" in titles
@@ -326,8 +326,8 @@ class TestRainAlert:
         monitor.rain.last_code = 61
         times = _future_times(1)
         data = _alert_data(times, [80.0], [0.1], [61], [10.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Rain Alert" not in titles
@@ -335,8 +335,8 @@ class TestRainAlert:
     def test_rain_alert_includes_start_and_end_times(self, monitor):
         times = _future_times(3)
         data = _alert_data(times, [80.0, 75.0, 60.0], [0.1, 0.2, 0.1], [61, 63, 61], [10.0, 10.0, 10.0], [82.0, 82.0, 82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         rain_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Rain Alert")
         assert "–" in rain_call.args[0]
@@ -350,8 +350,8 @@ class TestWindAlert:
     def test_sends_alert_when_gusts_exceed_threshold(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [35.0, 38.0], [82.0, 83.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Wind Gust Alert" in titles
@@ -364,8 +364,8 @@ class TestWindAlert:
                 "rain": [], "weather_code": [], "wind_gusts_10m": [], "apparent_temperature": [],
             },
         }
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Wind Gust Alert" in titles
@@ -373,8 +373,8 @@ class TestWindAlert:
     def test_no_alert_below_threshold(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [10.0, 12.0], [82.0, 83.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Wind Gust Alert" not in titles
@@ -385,8 +385,8 @@ class TestWindAlert:
         wind.last_peak = 38.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [38.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Wind Gust Alert" not in titles
@@ -394,8 +394,8 @@ class TestWindAlert:
     def test_sets_wind_cooldown_after_alert(self, monitor):
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [38.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification"):
             jobs.check_weather_alerts(monitor)
         wind = next(a for a in monitor.threshold_alerts if a.name == "wind")
         assert wind.last_alert is not None
@@ -406,8 +406,8 @@ class TestWindAlert:
         wind.last_peak = 32.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [40.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Wind Gust Alert" in titles
@@ -418,8 +418,8 @@ class TestWindAlert:
         wind.last_peak = 38.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [38.0], [82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Wind Gust Alert" not in titles
@@ -427,8 +427,8 @@ class TestWindAlert:
     def test_wind_alert_includes_time_range(self, monitor):
         times = _future_times(3)
         data = _alert_data(times, [5.0, 5.0, 5.0], [0.0, 0.0, 0.0], [0, 0, 0], [35.0, 38.0, 32.0], [82.0, 82.0, 82.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         wind_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Wind Gust Alert")
         assert "from" in wind_call.args[0]
@@ -443,8 +443,8 @@ class TestHeatAlert:
     def test_sends_alert_when_heat_exceeds_threshold(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [10.0, 12.0], [103.0, 105.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Heat Risk Alert" in titles
@@ -457,8 +457,8 @@ class TestHeatAlert:
                 "rain": [], "weather_code": [], "wind_gusts_10m": [], "apparent_temperature": [],
             },
         }
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Heat Risk Alert" in titles
@@ -466,8 +466,8 @@ class TestHeatAlert:
     def test_no_alert_below_threshold(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [10.0, 12.0], [82.0, 85.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Heat Risk Alert" not in titles
@@ -478,8 +478,8 @@ class TestHeatAlert:
         heat.last_peak = 105.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [105.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Heat Risk Alert" not in titles
@@ -490,8 +490,8 @@ class TestHeatAlert:
         heat.last_peak = 102.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [107.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Heat Risk Alert" in titles
@@ -499,8 +499,8 @@ class TestHeatAlert:
     def test_heat_alert_includes_time_range(self, monitor):
         times = _future_times(3)
         data = _alert_data(times, [5.0, 5.0, 5.0], [0.0, 0.0, 0.0], [0, 0, 0], [10.0, 10.0, 10.0], [103.0, 106.0, 101.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         heat_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Heat Risk Alert")
         assert "from" in heat_call.args[0]
@@ -515,8 +515,8 @@ class TestFrostAlert:
     def test_sends_alert_when_temperature_below_threshold(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [10.0, 12.0], [30.0, 28.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Frost Alert" in titles
@@ -524,8 +524,8 @@ class TestFrostAlert:
     def test_no_alert_above_threshold(self, monitor):
         times = _future_times(2)
         data = _alert_data(times, [5.0, 5.0], [0.0, 0.0], [0, 0], [10.0, 12.0], [50.0, 55.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Frost Alert" not in titles
@@ -536,8 +536,8 @@ class TestFrostAlert:
         frost.last_peak = 30.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [30.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Frost Alert" not in titles
@@ -548,8 +548,8 @@ class TestFrostAlert:
         frost.last_peak = 34.0
         times = _future_times(1)
         data = _alert_data(times, [5.0], [0.0], [0], [10.0], [28.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Frost Alert" in titles
@@ -557,8 +557,8 @@ class TestFrostAlert:
     def test_frost_alert_includes_time_range(self, monitor):
         times = _future_times(3)
         data = _alert_data(times, [5.0, 5.0, 5.0], [0.0, 0.0, 0.0], [0, 0, 0], [10.0, 10.0, 10.0], [34.0, 30.0, 32.0])
-        with patch("jobs.fetch_rain_check_weather", return_value=data), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_rain_check_weather", return_value=data), \
+                patch("app.jobs.send_notification") as mock_notify:
             jobs.check_weather_alerts(monitor)
         frost_call = next(c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Frost Alert")
         assert "from" in frost_call.args[0]
@@ -574,13 +574,13 @@ class TestAlertCooldownSkip:
         now = datetime.now(EASTERN)
         for alert in monitor.all_alerts:
             alert.last_alert = now
-        with patch("jobs.fetch_rain_check_weather") as mock_fetch:
+        with patch("app.jobs.fetch_rain_check_weather") as mock_fetch:
             jobs.check_weather_alerts(monitor)
         mock_fetch.assert_not_called()
 
     def test_logs_and_swallows_api_error(self, monitor):
-        with patch("jobs.fetch_rain_check_weather", side_effect=Exception("timeout")), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_rain_check_weather", side_effect=Exception("timeout")), \
+                patch("app.jobs.send_notification"):
             jobs.check_weather_alerts(monitor)  # must not raise
 
 
@@ -590,39 +590,39 @@ class TestAlertCooldownSkip:
 
 class TestApiFailureNotification:
     def test_notifies_after_threshold(self, monitor):
-        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("app.jobs.send_notification") as mock_notify:
             for _ in range(jobs.API_FAILURE_NOTIFY_AFTER):
                 jobs.send_daily_report(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Weather App Error" in titles
 
     def test_does_not_notify_before_threshold(self, monitor):
-        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("app.jobs.send_notification") as mock_notify:
             for _ in range(jobs.API_FAILURE_NOTIFY_AFTER - 1):
                 jobs.send_daily_report(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
         assert "Weather App Error" not in titles
 
     def test_notifies_only_once_per_outage(self, monitor):
-        with patch("jobs.fetch_report_weather", side_effect=Exception("API down")), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", side_effect=Exception("API down")), \
+                patch("app.jobs.send_notification") as mock_notify:
             for _ in range(jobs.API_FAILURE_NOTIFY_AFTER + 3):
                 jobs.send_daily_report(monitor)
         error_calls = [c for c in mock_notify.call_args_list if c.kwargs.get("title") == "Weather App Error"]
         assert len(error_calls) == 1
 
     def test_resets_and_renotifies_after_recovery(self, monitor):
-        with patch("jobs.fetch_report_weather", side_effect=Exception("down")), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_report_weather", side_effect=Exception("down")), \
+                patch("app.jobs.send_notification"):
             for _ in range(jobs.API_FAILURE_NOTIFY_AFTER):
                 jobs.send_daily_report(monitor)
-        with patch("jobs.fetch_report_weather", return_value=REPORT_DATA), \
-                patch("jobs.send_notification"):
+        with patch("app.jobs.fetch_report_weather", return_value=REPORT_DATA), \
+                patch("app.jobs.send_notification"):
             jobs.send_daily_report(monitor)
-        with patch("jobs.fetch_report_weather", side_effect=Exception("down")), \
-                patch("jobs.send_notification") as mock_notify:
+        with patch("app.jobs.fetch_report_weather", side_effect=Exception("down")), \
+                patch("app.jobs.send_notification") as mock_notify:
             for _ in range(jobs.API_FAILURE_NOTIFY_AFTER):
                 jobs.send_daily_report(monitor)
         titles = [c.kwargs.get("title") for c in mock_notify.call_args_list]
@@ -635,14 +635,14 @@ class TestApiFailureNotification:
 
 class TestPruneDatabase:
     def test_logs_pruned_counts(self):
-        with patch("jobs.db.prune_old_records", return_value=(2, 5)) as mock_prune, \
-                patch("jobs.log") as mock_log:
+        with patch("app.jobs.db.prune_old_records", return_value=(2, 5)) as mock_prune, \
+                patch("app.jobs.log") as mock_log:
             jobs.prune_database()
         mock_prune.assert_called_once_with(jobs.DB_RETAIN_DAYS)
         mock_log.info.assert_called_once()
 
     def test_swallows_exception(self):
-        with patch("jobs.db.prune_old_records", side_effect=Exception("disk full")), \
-                patch("jobs.log") as mock_log:
+        with patch("app.jobs.db.prune_old_records", side_effect=Exception("disk full")), \
+                patch("app.jobs.log") as mock_log:
             jobs.prune_database()  # must not raise
         mock_log.exception.assert_called_once()

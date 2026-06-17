@@ -1,10 +1,10 @@
 import os
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import db
-from config import LocationConfig
-from jobs import API_FAILURE_NOTIFY_AFTER, DB_RETAIN_DAYS
-from monitor import (
+from app import db
+from app.config import LocationConfig
+from app.jobs import API_FAILURE_NOTIFY_AFTER, DB_RETAIN_DAYS
+from app.monitor import (
     FROST_TEMP_ALERT_F,
     HEAT_INDEX_ALERT_F,
     RAIN_AMOUNT_ALERT_IN,

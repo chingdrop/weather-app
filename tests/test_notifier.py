@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-import notifier
+from app import notifier
 
 
 class TestNotifierConfig:

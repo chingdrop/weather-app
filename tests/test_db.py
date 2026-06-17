@@ -3,7 +3,7 @@ from datetime import timedelta, timezone
 import pytest
 from sqlalchemy import inspect
 
-import db
+from app import db
 
 
 class TestInitDb:
@@ -232,7 +232,7 @@ class TestGetLastAlertTime:
 
 class TestRequireEngine:
     def test_raises_before_init(self, tmp_path):
-        import db as db_module
+        from app import db as db_module
         original_engine = db_module._engine
         db_module._engine = None
         try:

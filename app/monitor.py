@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import db
-from config import LocationConfig
+from app import db
+from app.config import LocationConfig
 
 log = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 import app.state as state
 from app.helpers import get_settings
-from jobs import check_weather_alerts, prune_database, send_daily_report, send_evening_report
+from app.jobs import check_weather_alerts, prune_database, send_daily_report, send_evening_report
 
 log = logging.getLogger(__name__)
 

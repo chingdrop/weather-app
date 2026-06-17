@@ -1,6 +1,6 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
-import db
+from app import db
 import app.state as state
 from app.helpers import build_cfg, get_settings, parse_location_form
 

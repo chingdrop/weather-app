@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-import db as db_module
+from app import db as db_module
 from app import app as flask_app
 import app.state as state
 import app.startup as startup_module

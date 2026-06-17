@@ -5,8 +5,8 @@ import time
 
 from flask import Blueprint, jsonify, request
 
-import db
-from jobs import send_quick_report
+from app import db
+from app.jobs import send_quick_report
 from app.helpers import get_monitor
 import app.state as state
 

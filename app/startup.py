@@ -2,12 +2,12 @@ import logging
 import os
 from datetime import datetime
 
-import db
+from app import db
 import app.state as state
 from app.helpers import build_cfg
 from app.scheduler import start_scheduler
-from jobs import send_daily_report
-from monitor import LocationMonitor, init_cooldowns
+from app.jobs import send_daily_report
+from app.monitor import LocationMonitor, init_cooldowns
 
 _dev = os.environ.get("FLASK_DEBUG", "0") == "1"
 log = logging.getLogger(__name__)

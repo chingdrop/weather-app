@@ -1,9 +1,9 @@
 import pytest
 
-import db as db_module
+from app import db as db_module
 import app.state as state_module
-from config import LocationConfig
-from monitor import LocationMonitor
+from app.config import LocationConfig
+from app.monitor import LocationMonitor
 
 TEST_CFG = LocationConfig(
     name="test",

@@ -1,11 +1,11 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
-import db
+from app import db
 import app.state as state
 from app.helpers import build_cfg, get_settings, parse_location_form
 from app.scheduler import start_scheduler
-from jobs import send_daily_report
-from monitor import LocationMonitor, init_cooldowns
+from app.jobs import send_daily_report
+from app.monitor import LocationMonitor, init_cooldowns
 
 setup_bp = Blueprint("setup", __name__)
 
