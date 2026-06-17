@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -144,22 +144,20 @@ class TestHistoryAlertsRoute:
 # ---------------------------------------------------------------------------
 
 class TestStartupDailyReport:
-    def _run_startup(self, location_id):
-        mock_sched = MagicMock()
-        with patch("main.load_locations", return_value=[TEST_CFG]), \
-                patch("main.db.upsert_location", return_value=location_id), \
-                patch("main.BackgroundScheduler", return_value=mock_sched), \
+    def _run_startup(self):
+        with patch("main.db.init_db"), \
+                patch("main._start_scheduler"), \
                 patch("main.send_daily_report") as mock_report:
             main._startup()
         return mock_report
 
     def test_sends_report_when_none_recorded_today(self, location_id):
-        mock_report = self._run_startup(location_id)
+        mock_report = self._run_startup()
         mock_report.assert_called_once()
 
     def test_skips_report_when_already_sent_today(self, location_id):
         db_module.record_report(location_id, "daily", "already sent")
-        mock_report = self._run_startup(location_id)
+        mock_report = self._run_startup()
         mock_report.assert_not_called()
 
     def test_sends_report_when_last_was_yesterday(self, location_id):
@@ -167,5 +165,5 @@ class TestStartupDailyReport:
         with db_module.Session(db_module._require_engine()) as session:
             session.add(db_module.Report(location_id=location_id, type="daily", message="yesterday", created_at=yesterday))
             session.commit()
-        mock_report = self._run_startup(location_id)
+        mock_report = self._run_startup()
         mock_report.assert_called_once()

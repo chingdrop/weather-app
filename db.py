@@ -183,6 +183,11 @@ def prune_old_records(retain_days: int) -> tuple[int, int]:
     return reports_deleted, alerts_deleted
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """SQLite strips timezone; re-attach UTC when reading back naive datetimes."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
 def get_last_report_time(location_id: int, report_type: str) -> datetime | None:
     with Session(_require_engine()) as session:
         row = (
@@ -191,7 +196,7 @@ def get_last_report_time(location_id: int, report_type: str) -> datetime | None:
             .order_by(Report.id.desc())
             .first()
         )
-        return row.created_at if row else None
+        return _as_utc(row.created_at) if row else None
 
 
 def get_last_alert_time(location_id: int, alert_type: str) -> datetime | None:
@@ -202,7 +207,7 @@ def get_last_alert_time(location_id: int, alert_type: str) -> datetime | None:
             .order_by(Alert.id.desc())
             .first()
         )
-        return row.created_at if row else None
+        return _as_utc(row.created_at) if row else None
 
 
 def get_locations() -> list[Location]:
