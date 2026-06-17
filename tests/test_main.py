@@ -5,7 +5,6 @@ import pytest
 
 from app import db as db_module
 from app import app as flask_app
-import app.state as state
 import app.startup as startup_module
 from conftest import TEST_CFG
 
@@ -52,7 +51,7 @@ class TestReportRoute:
         assert "API error" in data["message"]
 
     def test_returns_400_when_no_monitors(self, client):
-        state.monitors.clear()
+        startup_module.monitors.clear()
         resp = client.get("/report")
         assert resp.status_code == 400
 

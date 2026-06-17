@@ -16,8 +16,6 @@ logging.basicConfig(
 
 from flask import Flask
 
-import app.state as state
-
 
 def create_app() -> Flask:
     flask_app = Flask(__name__)
@@ -31,9 +29,10 @@ def create_app() -> Flask:
     flask_app.register_blueprint(setup_bp)
     flask_app.register_blueprint(config_bp)
 
+    import app.startup as _startup
     atexit.register(
-        lambda: state.scheduler.shutdown(wait=False)
-        if state.scheduler and state.scheduler.running else None
+        lambda: _startup.scheduler.shutdown(wait=False)
+        if _startup.scheduler and _startup.scheduler.running else None
     )
 
     return flask_app

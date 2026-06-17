@@ -7,11 +7,20 @@ from flask import Blueprint, jsonify, request
 
 from app import db
 from app.jobs import send_quick_report
-from app.helpers import get_monitor
-import app.state as state
+import app.startup as startup
 
 api_bp = Blueprint("api", __name__)
 log = logging.getLogger(__name__)
+
+
+def _get_monitor(name):
+    if not startup.monitors:
+        return None
+    if name:
+        return startup.monitors.get(name)
+    if len(startup.monitors) == 1:
+        return next(iter(startup.monitors.values()))
+    return None
 
 
 @api_bp.route("/health")
@@ -30,7 +39,7 @@ def history_reports():
 
     location_id = None
     if location_name:
-        m = state.monitors.get(location_name)
+        m = startup.monitors.get(location_name)
         if m is None:
             return jsonify({"status": "error", "message": f"unknown location: {location_name}"}), 404
         location_id = m.location_id
@@ -49,7 +58,7 @@ def history_alerts():
 
     location_id = None
     if location_name:
-        m = state.monitors.get(location_name)
+        m = startup.monitors.get(location_name)
         if m is None:
             return jsonify({"status": "error", "message": f"unknown location: {location_name}"}), 404
         location_id = m.location_id
@@ -60,9 +69,9 @@ def history_alerts():
 @api_bp.route("/report")
 def report():
     location_name = request.args.get("location") or None
-    monitor = get_monitor(location_name)
+    monitor = _get_monitor(location_name)
     if monitor is None:
-        msg = "specify ?location=name" if len(state.monitors) > 1 else "no locations configured"
+        msg = "specify ?location=name" if len(startup.monitors) > 1 else "no locations configured"
         return jsonify({"status": "error", "message": msg}), 400
     try:
         message = send_quick_report(monitor)

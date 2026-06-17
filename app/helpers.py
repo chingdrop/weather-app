@@ -2,19 +2,16 @@ import os
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app import db
-from app.config import LocationConfig
 from app.jobs import API_FAILURE_NOTIFY_AFTER, DB_RETAIN_DAYS
 from app.monitor import (
     FROST_TEMP_ALERT_F,
     HEAT_INDEX_ALERT_F,
+    LocationConfig,
     RAIN_AMOUNT_ALERT_IN,
     RAIN_PROB_ALERT_PERCENT,
     UV_INDEX_ALERT,
     WIND_GUST_ALERT_MPH,
-    LocationMonitor,
 )
-
-import app.state as state
 
 DAILY_REPORT_HOUR = int(os.environ.get("DAILY_REPORT_HOUR", "7"))
 EVENING_REPORT_HOUR = int(os.environ.get("EVENING_REPORT_HOUR", "21"))
@@ -59,16 +56,6 @@ def build_cfg(loc: db.Location) -> LocationConfig:
         frost_temp_alert_f=_eff(loc.frost_temp_alert_f, "frost_temp_alert_f"),
         uv_index_alert=_eff(loc.uv_index_alert, "uv_index_alert", cast=lambda x: int(float(x))),
     )
-
-
-def get_monitor(name: str | None) -> LocationMonitor | None:
-    if not state.monitors:
-        return None
-    if name:
-        return state.monitors.get(name)
-    if len(state.monitors) == 1:
-        return next(iter(state.monitors.values()))
-    return None
 
 
 def parse_location_form(form) -> dict:

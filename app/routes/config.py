@@ -1,7 +1,7 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from app import db
-import app.state as state
+import app.startup as startup
 from app.helpers import build_cfg, get_settings, parse_location_form
 
 config_bp = Blueprint("config", __name__)
@@ -53,7 +53,7 @@ def config_location_edit(name):
 
         db.upsert_location(**fields)
 
-        monitor = state.monitors.get(name)
+        monitor = startup.monitors.get(name)
         if monitor:
             updated = db.get_location_by_name(name)
             cfg = build_cfg(updated)
@@ -83,7 +83,7 @@ def config_location_delete(name):
         return redirect(url_for("config.config_locations"))
 
     db.delete_location(loc.id)
-    state.monitors.pop(name, None)
+    startup.monitors.pop(name, None)
     flash(f"Location '{name}' deleted. Restart the app to update the scheduler.", "success")
     return redirect(url_for("config.config_locations"))
 

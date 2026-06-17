@@ -1,8 +1,8 @@
 import pytest
 
 from app import db as db_module
-import app.state as state_module
-from app.config import LocationConfig
+import app.startup as startup_module
+from app.monitor import LocationConfig
 from app.monitor import LocationMonitor
 
 TEST_CFG = LocationConfig(
@@ -41,6 +41,6 @@ def location_id():
 @pytest.fixture
 def monitor(location_id):
     m = LocationMonitor.create(location_id, TEST_CFG)
-    state_module.monitors[TEST_CFG.name] = m
+    startup_module.monitors[TEST_CFG.name] = m
     yield m
-    state_module.monitors.clear()
+    startup_module.monitors.clear()
