@@ -4,7 +4,9 @@ from unittest.mock import patch
 import pytest
 
 import db as db_module
-import main
+from app import app as flask_app
+import app.state as state
+import app.startup as startup_module
 from conftest import TEST_CFG
 
 TEST_LOCATION_ID = None  # resolved in fixture below
@@ -12,8 +14,8 @@ TEST_LOCATION_ID = None  # resolved in fixture below
 
 @pytest.fixture
 def client(monitor):
-    main.app.config["TESTING"] = True
-    with main.app.test_client() as c:
+    flask_app.config["TESTING"] = True
+    with flask_app.test_client() as c:
         yield c
 
 
@@ -34,7 +36,7 @@ class TestHealthRoute:
 
 class TestReportRoute:
     def test_returns_sent_status(self, client):
-        with patch("main.send_quick_report", return_value="Partly cloudy\nTemp: 88°F"):
+        with patch("app.routes.api.send_quick_report", return_value="Partly cloudy\nTemp: 88°F"):
             resp = client.get("/report")
         assert resp.status_code == 200
         data = resp.get_json()
@@ -42,7 +44,7 @@ class TestReportRoute:
         assert "88°F" in data["message"]
 
     def test_returns_500_json_on_error(self, client):
-        with patch("main.send_quick_report", side_effect=Exception("API error")):
+        with patch("app.routes.api.send_quick_report", side_effect=Exception("API error")):
             resp = client.get("/report")
         assert resp.status_code == 500
         data = resp.get_json()
@@ -50,7 +52,7 @@ class TestReportRoute:
         assert "API error" in data["message"]
 
     def test_returns_400_when_no_monitors(self, client):
-        main._monitors.clear()
+        state.monitors.clear()
         resp = client.get("/report")
         assert resp.status_code == 400
 
@@ -140,15 +142,15 @@ class TestHistoryAlertsRoute:
 
 
 # ---------------------------------------------------------------------------
-# _startup — catch-up daily report
+# startup — catch-up daily report
 # ---------------------------------------------------------------------------
 
 class TestStartupDailyReport:
     def _run_startup(self):
-        with patch("main.db.init_db"), \
-                patch("main._start_scheduler"), \
-                patch("main.send_daily_report") as mock_report:
-            main._startup()
+        with patch("app.startup.db.init_db"), \
+                patch("app.startup.start_scheduler"), \
+                patch("app.startup.send_daily_report") as mock_report:
+            startup_module.startup()
         return mock_report
 
     def test_sends_report_when_none_recorded_today(self, location_id):

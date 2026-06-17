@@ -6,6 +6,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY *.py ./
+COPY app/ ./app/
 
 ENV HOST=0.0.0.0 \
     PORT=5000 \
